@@ -1,0 +1,64 @@
+FROM python:3.11-slim
+
+# Set working directory
+WORKDIR /app
+
+# Install system dependencies for Hugging Face transformers
+RUN apt-get update && apt-get install -y \
+    curl \
+    build-essential \
+    git \
+    wget \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy Hugging Face requirements first for better caching
+COPY requirements_huggingface.txt .
+
+# Install Python dependencies with optimizations for transformers
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements_huggingface.txt
+
+# Install additional dependencies for enhanced features
+RUN pip install --no-cache-dir \
+    requests \
+    numpy \
+    cryptography \
+    chromadb \
+    fastapi \
+    uvicorn \
+    pydantic
+
+# Copy application code
+COPY . .
+
+# Create necessary directories
+RUN mkdir -p /app/models_cache /app/logs /app/vector-db
+
+# Set environment variables for Hugging Face
+ENV PYTHONPATH=/app
+ENV PYTHONUNBUFFERED=1
+ENV HUGGINGFACE_HUB_CACHE=/app/models_cache
+ENV TRANSFORMERS_CACHE=/app/models_cache
+ENV HF_HOME=/app/models_cache
+ENV TOKENIZERS_PARALLELISM=false
+
+# Create a Hugging Face transformers service
+RUN echo '#!/bin/bash\n\
+echo "Starting Hugging Face Transformers Service..."\n\
+echo "Downloading default models..."\n\
+python -c "from transformers import AutoTokenizer, AutoModel; AutoTokenizer.from_pretrained(\"microsoft/DialoGPT-medium\"); AutoModel.from_pretrained(\"microsoft/DialoGPT-medium\")"\n\
+echo "Starting service..."\n\
+python huggingface_service.py' > /app/start_hf_service.sh && \
+    chmod +x /app/start_hf_service.sh
+
+# Expose port
+EXPOSE 8007
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD curl -f http://localhost:8007/health || exit 1
+
+# Run the Hugging Face transformers service
+CMD ["/app/start_hf_service.sh"]
+
+

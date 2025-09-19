@@ -1,0 +1,114 @@
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: grc-postgres-hf
+    environment:
+      POSTGRES_DB: grc_platform
+      POSTGRES_USER: grc_user
+      POSTGRES_PASSWORD: grc_password
+    volumes:
+      - postgres_data_hf:/var/lib/postgresql/data
+      - ../../database/schema.sql:/docker-entrypoint-initdb.d/1-schema.sql
+    ports:
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U grc_user -d grc_platform"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - grc-network
+
+  # Redis Cache and Message Broker
+  redis:
+    image: redis:7-alpine
+    container_name: grc-redis-hf
+    ports:
+      - "6380:6379"
+    volumes:
+      - redis_data_hf:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - grc-network
+
+  # Chroma Vector Database
+  chroma:
+    image: chromadb/chroma:latest
+    container_name: grc-chroma-hf
+    ports:
+      - "8002:8000"
+    volumes:
+      - chroma_data_hf:/chroma/chroma
+    environment:
+      - CHROMA_SERVER_HOST=0.0.0.0
+      - CHROMA_SERVER_HTTP_PORT=8000
+    networks:
+      - grc-network
+    restart: unless-stopped
+    # healthcheck:
+    #   test: ["CMD", "curl", "-f", "http://localhost:8000/api/v2/version"]
+    #   interval: 30s
+    #   timeout: 10s
+    #   retries: 3
+
+  # Hugging Face Transformers Service
+  huggingface-transformers:
+    build:
+      context: ../../ai-agents
+      dockerfile: Dockerfile.huggingface
+    container_name: grc-huggingface-transformers
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - CHROMA_HOST=chroma
+      - CHROMA_PORT=8000
+      - POSTGRES_URL=postgresql://grc_user:grc_password@postgres:5432/grc_platform
+      - HUGGINGFACE_HUB_CACHE=/app/models_cache
+      - TRANSFORMERS_CACHE=/app/models_cache
+      - HF_HOME=/app/models_cache
+      - PORT=8007
+      - DEFAULT_MODEL_NAME=microsoft/DialoGPT-medium
+      - EMBEDDING_MODEL=sentence-transformers/all-MiniLM-L6-v2
+      - MAX_MODEL_SIZE=2GB
+      - ENABLE_GPU=false
+    ports:
+      - "8007:8007"
+    volumes:
+      - ../../ai-agents:/app
+      - ../../vector-db:/app/vector-db
+      - huggingface_models:/app/models_cache
+    depends_on:
+      redis:
+        condition: service_healthy
+      chroma:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+    networks:
+      - grc-network
+    restart: unless-stopped
+    # Resource limits for model loading
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+        reservations:
+          memory: 2G
+
+volumes:
+  postgres_data_hf:
+    driver: local
+  redis_data_hf:
+    driver: local
+  chroma_data_hf:
+    driver: local
+  huggingface_models:
+    driver: local
+
+networks:
+  grc-network:
+    driver: bridge

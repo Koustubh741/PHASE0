@@ -1,0 +1,224 @@
+version: '3.8'
+
+services:
+  # Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: grc-postgres
+    environment:
+      POSTGRES_DB: grc_platform
+      POSTGRES_USER: grc_user
+      POSTGRES_PASSWORD: grc_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./config/database/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
+      - ./config/database/populate_all_sample_data.sql:/docker-entrypoint-initdb.d/02-data.sql
+    networks:
+      - grc-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U grc_user -d grc_platform"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis
+  redis:
+    image: redis:7-alpine
+    container_name: grc-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - grc-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Backend API Gateway
+  api-gateway:
+    build:
+      context: ./backend
+      dockerfile: deployment/docker/services/Dockerfile.api-gateway
+    container_name: grc-api-gateway
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://grc_user:grc_password@postgres:5432/grc_platform
+      - REDIS_URL=redis://redis:6379
+      - POLICY_SERVICE_URL=http://policy-service:8001
+      - RISK_SERVICE_URL=http://risk-service:8002
+      - COMPLIANCE_SERVICE_URL=http://compliance-service:8003
+      - WORKFLOW_SERVICE_URL=http://workflow-service:8004
+      - AI_AGENTS_URL=http://ai-agents:8005
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - grc-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Policy Service
+  policy-service:
+    build:
+      context: ./backend
+      dockerfile: deployment/docker/services/Dockerfile.policy
+    container_name: grc-policy-service
+    ports:
+      - "8001:8001"
+    environment:
+      - DATABASE_URL=postgresql://grc_user:grc_password@postgres:5432/grc_platform
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - grc-network
+
+  # Risk Service
+  risk-service:
+    build:
+      context: ./backend
+      dockerfile: deployment/docker/services/Dockerfile.risk
+    container_name: grc-risk-service
+    ports:
+      - "8002:8002"
+    environment:
+      - DATABASE_URL=postgresql://grc_user:grc_password@postgres:5432/grc_platform
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - grc-network
+
+  # Compliance Service
+  compliance-service:
+    build:
+      context: ./backend
+      dockerfile: deployment/docker/services/Dockerfile.compliance
+    container_name: grc-compliance-service
+    ports:
+      - "8003:8003"
+    environment:
+      - DATABASE_URL=postgresql://grc_user:grc_password@postgres:5432/grc_platform
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - grc-network
+
+  # Workflow Service
+  workflow-service:
+    build:
+      context: ./backend
+      dockerfile: deployment/docker/services/Dockerfile.workflow
+    container_name: grc-workflow-service
+    ports:
+      - "8004:8004"
+    environment:
+      - DATABASE_URL=postgresql://grc_user:grc_password@postgres:5432/grc_platform
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - grc-network
+
+  # AI Agents Service
+  ai-agents:
+    build:
+      context: ./backend/ai-agents
+      dockerfile: Dockerfile.enhanced
+    container_name: grc-ai-agents
+    ports:
+      - "8005:8005"
+    environment:
+      - DATABASE_URL=postgresql://grc_user:grc_password@postgres:5432/grc_platform
+      - REDIS_URL=redis://redis:6379
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - OLLAMA_BASE_URL=http://ollama:11434
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - grc-network
+
+  # Ollama (Local LLM)
+  ollama:
+    image: ollama/ollama:latest
+    container_name: grc-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    networks:
+      - grc-network
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+  # Frontend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: deployment/docker/services/Dockerfile.frontend
+    container_name: grc-frontend
+    ports:
+      - "3000:80"
+    environment:
+      - REACT_APP_API_BASE_URL=http://localhost:8000
+    depends_on:
+      - api-gateway
+    networks:
+      - grc-network
+
+  # Nginx (Reverse Proxy)
+  nginx:
+    image: nginx:alpine
+    container_name: grc-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./config/infrastructure/nginx/nginx.conf:/etc/nginx/nginx.conf
+      - ./config/infrastructure/nginx/ssl:/etc/nginx/ssl
+    depends_on:
+      - frontend
+      - api-gateway
+    networks:
+      - grc-network
+
+volumes:
+  postgres_data:
+  redis_data:
+  ollama_data:
+
+networks:
+  grc-network:
+    driver: bridge

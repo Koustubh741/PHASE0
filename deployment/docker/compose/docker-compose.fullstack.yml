@@ -1,0 +1,248 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15
+    container_name: grc-postgres
+    environment:
+      POSTGRES_DB: grc_platform
+      POSTGRES_USER: grc_user
+      POSTGRES_PASSWORD: grc_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/schema.sql:/docker-entrypoint-initdb.d/schema.sql
+    networks:
+      - grc-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U grc_user -d grc_platform"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: grc-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - grc-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Policy Service
+  policy-service:
+    build:
+      context: ./backend/services
+      dockerfile: Dockerfile.policy
+    container_name: grc-policy-service
+    environment:
+      - DATABASE_URL=postgresql://grc_user:grc_password@postgres:5432/grc_platform
+      - REDIS_URL=redis://redis:6379
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+    ports:
+      - "8001:8001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - grc-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Risk Service
+  risk-service:
+    build:
+      context: ./backend/services
+      dockerfile: Dockerfile.risk
+    container_name: grc-risk-service
+    environment:
+      - DATABASE_URL=postgresql://grc_user:grc_password@postgres:5432/grc_platform
+      - REDIS_URL=redis://redis:6379
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+    ports:
+      - "8002:8002"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - grc-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Compliance Service
+  compliance-service:
+    build:
+      context: ./backend/services
+      dockerfile: Dockerfile.compliance
+    container_name: grc-compliance-service
+    environment:
+      - DATABASE_URL=postgresql://grc_user:grc_password@postgres:5432/grc_platform
+      - REDIS_URL=redis://redis:6379
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+    ports:
+      - "8003:8003"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - grc-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8003/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Workflow Service
+  workflow-service:
+    build:
+      context: ./backend/services
+      dockerfile: Dockerfile.workflow
+    container_name: grc-workflow-service
+    environment:
+      - DATABASE_URL=postgresql://grc_user:grc_password@postgres:5432/grc_platform
+      - REDIS_URL=redis://redis:6379
+    ports:
+      - "8004:8004"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - grc-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8004/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # AI Agents Service
+  ai-agents:
+    build:
+      context: ./ai-agents
+      dockerfile: Dockerfile.enhanced
+    container_name: grc-ai-agents
+    environment:
+      - DATABASE_URL=postgresql://grc_user:grc_password@postgres:5432/grc_platform
+      - REDIS_URL=redis://redis:6379
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - CHROMA_PERSIST_DIRECTORY=/app/chroma_db
+    ports:
+      - "8005:8005"
+    volumes:
+      - ai_agents_data:/app/chroma_db
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - grc-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8005/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # API Gateway
+  api-gateway:
+    build:
+      context: ./backend/api-gateway
+      dockerfile: Dockerfile
+    container_name: grc-api-gateway
+    environment:
+      - POLICY_SERVICE_URL=http://policy-service:8001
+      - RISK_SERVICE_URL=http://risk-service:8002
+      - COMPLIANCE_SERVICE_URL=http://compliance-service:8003
+      - WORKFLOW_SERVICE_URL=http://workflow-service:8004
+      - AI_AGENTS_URL=http://ai-agents:8005
+    ports:
+      - "8000:8000"
+    depends_on:
+      policy-service:
+        condition: service_healthy
+      risk-service:
+        condition: service_healthy
+      compliance-service:
+        condition: service_healthy
+      workflow-service:
+        condition: service_healthy
+      ai-agents:
+        condition: service_healthy
+    networks:
+      - grc-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # React Frontend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: grc-frontend
+    environment:
+      - REACT_APP_API_URL=http://localhost:8000
+      - REACT_APP_ENVIRONMENT=production
+    ports:
+      - "3000:3000"
+    depends_on:
+      api-gateway:
+        condition: service_healthy
+    networks:
+      - grc-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Nginx Reverse Proxy (Optional)
+  nginx:
+    image: nginx:alpine
+    container_name: grc-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+      - ./nginx/ssl:/etc/nginx/ssl
+    depends_on:
+      - frontend
+      - api-gateway
+    networks:
+      - grc-network
+    profiles:
+      - production
+
+volumes:
+  postgres_data:
+  redis_data:
+  ai_agents_data:
+
+networks:
+  grc-network:
+    driver: bridge

@@ -1,0 +1,134 @@
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: grc-postgres
+    environment:
+      POSTGRES_DB: grc_platform
+      POSTGRES_USER: grc_user
+      POSTGRES_PASSWORD: grc_password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ../../database/schema.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U grc_user -d grc_platform"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - grc-network
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: grc-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - grc-network
+
+  # API Gateway
+  api-gateway:
+    build:
+      context: ../services
+      dockerfile: api-gateway.Dockerfile
+    container_name: grc-api-gateway
+    environment:
+      DATABASE_URL: postgresql://grc_user:grc_password@postgres:5432/grc_platform
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: your-super-secret-jwt-key-change-this-in-production
+      PORT: 8000
+    ports:
+      - "8000:8000"
+    volumes:
+      - ../../backend:/app
+      - /app/node_modules
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - grc-network
+    restart: unless-stopped
+
+  # Frontend Application
+  frontend:
+    build:
+      context: ../services
+      dockerfile: frontend.Dockerfile
+    container_name: grc-frontend
+    environment:
+      REACT_APP_API_URL: http://localhost:8000
+      REACT_APP_WS_URL: ws://localhost:8000
+    ports:
+      - "3000:3000"
+    volumes:
+      - ../../frontend:/app
+      - /app/node_modules
+    depends_on:
+      - api-gateway
+    networks:
+      - grc-network
+    restart: unless-stopped
+
+  # AI Agents Service
+  ai-agents:
+    build:
+      context: ../services
+      dockerfile: Dockerfile.ai-agents
+    container_name: grc-ai-agents
+    environment:
+      REDIS_URL: redis://redis:6379
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      PINECONE_API_KEY: ${PINECONE_API_KEY}
+      PINECONE_ENVIRONMENT: ${PINECONE_ENVIRONMENT}
+    ports:
+      - "8005:8005"
+    volumes:
+      - ../../ai-agents/agents_organized:/app/ai-agents
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - grc-network
+    restart: unless-stopped
+
+  # Nginx Reverse Proxy (Optional)
+  nginx:
+    image: nginx:alpine
+    container_name: grc-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ../../infrastructure/nginx/nginx.conf:/etc/nginx/nginx.conf
+      - ../../infrastructure/nginx/ssl:/etc/nginx/ssl
+    depends_on:
+      - frontend
+      - api-gateway
+      - ai-agents
+    networks:
+      - grc-network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  grc-network:
+    driver: bridge
+
