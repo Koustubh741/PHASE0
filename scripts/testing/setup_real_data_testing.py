@@ -142,44 +142,43 @@ class GRCRealDataTester:
             logger.error(f"❌ Failed to load BFSI data: {e}")
             return False
     
+    def _generate_test_users(self):
+        """Generate test users dynamically"""
+        import uuid
+        from datetime import datetime
+        
+        roles = [
+            'Chief Risk Officer', 'Compliance Manager', 'Risk Analyst', 
+            'Operations Manager', 'Credit Risk Manager', 'Market Risk Manager'
+        ]
+        
+        first_names = ['John', 'Sarah', 'Michael', 'Emily', 'David', 'Lisa']
+        last_names = ['Smith', 'Johnson', 'Brown', 'Davis', 'Wilson', 'Taylor']
+        
+        test_users = []
+        for i, role in enumerate(roles):
+            user_id = f"user-{str(uuid.uuid4())[:8]}"
+            first_name = first_names[i % len(first_names)]
+            last_name = last_names[i % len(last_names)]
+            email = f"{first_name.lower()}.{last_name.lower()}@testbank.com"
+            
+            test_users.append({
+                'id': user_id,
+                'email': email,
+                'first_name': first_name,
+                'last_name': last_name,
+                'role': role,
+                'organization_id': 'org-123'
+            })
+        
+        return test_users
+
     def create_test_users(self):
         """Create test users for different roles"""
         logger.info("👥 Creating test users...")
         
-        test_users = [
-            {
-                'id': 'user-001',
-                'email': 'cfo@testbank.com',
-                'first_name': 'John',
-                'last_name': 'Smith',
-                'role': 'Chief Risk Officer',
-                'organization_id': 'org-123'
-            },
-            {
-                'id': 'user-002',
-                'email': 'compliance@testbank.com',
-                'first_name': 'Sarah',
-                'last_name': 'Johnson',
-                'role': 'Compliance Manager',
-                'organization_id': 'org-123'
-            },
-            {
-                'id': 'user-003',
-                'email': 'risk@testbank.com',
-                'first_name': 'Michael',
-                'last_name': 'Brown',
-                'role': 'Risk Analyst',
-                'organization_id': 'org-123'
-            },
-            {
-                'id': 'user-004',
-                'email': 'ops@testbank.com',
-                'first_name': 'Emily',
-                'last_name': 'Davis',
-                'role': 'Operations Manager',
-                'organization_id': 'org-123'
-            }
-        ]
+        # Generate test users dynamically
+        test_users = self._generate_test_users()
         
         try:
             conn = psycopg2.connect(**self.db_config)

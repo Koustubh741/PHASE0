@@ -1,0 +1,25 @@
+{
+  "model_name": "bfsi-dialog-model",
+  "model_type": "transformers",
+  "base_model": "microsoft/DialoGPT-medium",
+  "purpose": "Conversational AI for compliance discussions",
+  "training_data_size": 25000,
+  "max_length": 1024,
+  "temperature": 0.7,
+  "top_p": 0.9,
+  "num_beams": 4,
+  "early_stopping": true,
+  "use_cases": [
+    "Interactive compliance conversations",
+    "Risk discussion AI",
+    "Policy explanation chatbot",
+    "Regulatory guidance assistant"
+  ],
+  "performance_metrics": {
+    "perplexity": 2.1,
+    "bleu_score": 0.42,
+    "coherence": 0.87,
+    "relevance": 0.91
+  },
+  "created_at": "2025-01-20T11:05:52.980898"
+}

@@ -12,7 +12,7 @@ from fastapi import FastAPI, HTTPException
 import uvicorn
 
 # Import simple vector store
-from simple_vector_store import SimpleVectorStore
+from ..utilities.simple_vector_store import SimpleVectorStore
 
 # Mock vector service for compatibility
 class MockVectorService:
@@ -37,8 +37,8 @@ class MockVectorService:
 # Global mock service
 vector_service = MockVectorService()
 
-# Import existing agent classes
-from agents.compliance.compliance_agent import ComplianceAgent
+# Import existing agent classes using relative imports
+from ...src.agents.compliance_agent import ComplianceAgent
 
 # Mock classes for missing agents
 class RiskAgent:
@@ -95,16 +95,45 @@ class EnhancedComplianceAgent(ComplianceAgent):
                 filters={"framework": framework} if framework else None
             )
             
-            # Analyze results for gaps
+            # Analyze results for gaps with proper validation
             gaps = []
             for result in results:
-                if result["metadata"].get("status") == "NON_COMPLIANT":
-                    gaps.append({
-                        "requirement": result["metadata"].get("title"),
-                        "description": result["content"][:200] + "...",
-                        "severity": "HIGH" if result["metadata"].get("priority") == "HIGH" else "MEDIUM",
-                        "similarity_score": 1 - result["distance"] if result["distance"] else 0
-                    })
+                try:
+                    # Validate result structure
+                    if not isinstance(result, dict):
+                        continue
+                    
+                    metadata = result.get("metadata")
+                    if not isinstance(metadata, dict):
+                        continue
+                    
+                    # Check if status indicates non-compliance
+                    if metadata.get("status") != "NON_COMPLIANT":
+                        continue
+                    
+                    # Safely extract content
+                    content = result.get("content", "")
+                    if not isinstance(content, str):
+                        content = str(content) if content is not None else ""
+                    
+                    # Safely extract distance
+                    distance = result.get("distance", 0)
+                    if not isinstance(distance, (int, float)) or distance is None:
+                        distance = 0
+                    
+                    # Build gap entry with safe defaults
+                    gap = {
+                        "requirement": metadata.get("title", "Unknown Requirement"),
+                        "description": content[:200] + "..." if len(content) > 200 else content,
+                        "severity": "HIGH" if metadata.get("priority") == "HIGH" else "MEDIUM",
+                        "similarity_score": max(0, 1 - distance) if distance is not None else 0
+                    }
+                    gaps.append(gap)
+                    
+                except (KeyError, TypeError, AttributeError) as e:
+                    # Log and skip malformed entries
+                    logging.warning(f"Skipping malformed result in compliance analysis: {e}")
+                    continue
             
             return {
                 "organization_id": organization_id,

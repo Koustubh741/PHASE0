@@ -1,0 +1,66 @@
+
+SOX Compliance and Internal Controls Policy
+
+1. PURPOSE
+This policy establishes the framework for compliance requirements in accordance with SOX regulations.
+
+2. SCOPE
+This policy applies to the following areas within the organization:
+
+Business Units:
+- Finance and Accounting Department
+- Internal Audit Department
+- IT Security and Compliance Team
+- Executive Management
+- Board of Directors
+- Risk Management Department
+
+Key Processes:
+- Financial reporting and disclosure
+- Internal controls over financial reporting (ICFR)
+- IT general controls and application controls
+- Risk assessment and management
+- Audit and compliance monitoring
+- Vendor and third-party management
+
+Applicable Systems:
+- Enterprise Resource Planning (ERP) systems
+- Financial reporting systems
+- General ledger systems
+- Accounts payable and receivable systems
+- Treasury management systems
+- Compliance monitoring tools
+
+Specific Roles and Job Titles:
+- Chief Financial Officer (CFO)
+- Chief Executive Officer (CEO)
+- Chief Information Officer (CIO)
+- Internal Audit Manager
+- Financial Controllers
+- Accounting Managers
+- IT Security Managers
+- Compliance Officers
+- Board Members
+- External Auditors (in coordination)
+
+3. REQUIREMENTS
+- Compliance with SOX standards
+- Regular monitoring and assessment
+- Documentation and record keeping
+- Training and awareness programs
+- Incident reporting procedures
+
+4. IMPLEMENTATION
+- Automated monitoring systems
+- Regular audits and reviews
+- Staff training programs
+- Policy updates and maintenance
+
+5. RESPONSIBILITIES
+- Management: Overall oversight and compliance
+- Staff: Adherence to policy requirements
+- IT: System controls and security
+- Audit: Independent verification
+
+This policy is effective immediately and must be reviewed annually.
+    

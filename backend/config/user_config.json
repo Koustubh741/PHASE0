@@ -1,0 +1,39 @@
+{
+  "users": {
+    "admin": {
+      "user_id": "admin_001",
+      "username": "admin",
+      "email": "admin@bfsi.com",
+      "role": "admin",
+      "hashed_password": "$2b$12$xkstCBDtsAX3N0WdAwwSIeWiKrM8APsCuC1Se8A7PmyY3prZpq13K",
+      "is_active": true,
+      "created_at": "2024-01-01T00:00:00Z",
+      "last_login": null
+    },
+    "compliance": {
+      "user_id": "comp_001",
+      "username": "compliance",
+      "email": "compliance@bfsi.com",
+      "role": "compliance_officer",
+      "hashed_password": "$2b$12$hIhc1UiTsrJlCyQGuu5bpepIJG0tlXGS0mwwQh1rEjV0dRCry.vX6",
+      "is_active": true,
+      "created_at": "2024-01-01T00:00:00Z",
+      "last_login": null
+    },
+    "risk": {
+      "user_id": "risk_001",
+      "username": "risk",
+      "email": "risk@bfsi.com",
+      "role": "risk_manager",
+      "hashed_password": "$2b$12$cKaaHu1vk1jL0Ko/SsBeE.IkRkVgneRBBqM3oXwDob5yxR0eMu11S",
+      "is_active": true,
+      "created_at": "2024-01-01T00:00:00Z",
+      "last_login": null
+    }
+  },
+  "metadata": {
+    "version": "1.0",
+    "created_at": "2025-09-20T18:01:51.703379Z",
+    "description": "BFSI Platform User Configuration - Pre-computed password hashes for secure authentication"
+  }
+}

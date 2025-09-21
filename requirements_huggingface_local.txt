@@ -1,0 +1,46 @@
+# Enhanced Multi-LLM Service Requirements
+# Core Hugging Face libraries
+transformers>=4.56.0
+torch>=2.8.0
+tokenizers>=0.14.0
+datasets>=2.14.0
+
+# Model-specific requirements
+accelerate>=0.24.0
+safetensors>=0.4.0
+evaluate>=0.4.2
+
+# Integration with existing system
+numpy>=1.26.4
+pandas>=2.2.3
+scikit-learn>=1.3.0
+
+# For model serving and API
+fastapi>=0.115.6
+uvicorn>=0.35.0
+pydantic>=2.9.2
+
+# For model caching and optimization
+huggingface-hub>=0.17.0
+cachetools>=5.3.0
+
+# For embeddings and vector operations
+sentence-transformers>=2.2.2
+
+# For text processing
+nltk>=3.8.1
+spacy>=3.7.0
+
+# For API integration
+requests>=2.32.4
+httpx>=0.28.1
+aiohttp>=3.9.0
+
+# For system monitoring and analytics
+psutil>=5.9.0
+
+# For enhanced service features
+python-multipart>=0.0.6
+
+
+

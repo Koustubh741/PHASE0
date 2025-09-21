@@ -27,7 +27,8 @@ import {
   Paper,
   Tooltip,
   LinearProgress,
-  Alert
+  Alert,
+  CircularProgress
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -39,12 +40,18 @@ import {
   Warning as NonCompliantIcon,
   Schedule as PendingIcon
 } from '@mui/icons-material';
+import { complianceService } from '../services/complianceService';
 
 const ComplianceManagement = ({ apiCall, onSuccess, loading }) => {
   const [complianceItems, setComplianceItems] = useState([]);
   const [openDialog, setOpenDialog] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
-  const [formData, setFormData] = useState({
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [formData, setFormData] = useState({});
+
+  // Generate default form data
+  const getDefaultFormData = () => ({
     title: '',
     description: '',
     framework: '',
@@ -56,54 +63,26 @@ const ComplianceManagement = ({ apiCall, onSuccess, loading }) => {
     evidence: ''
   });
 
-  // Mock data for demonstration
+  // Load compliance items from API
   useEffect(() => {
-    const mockComplianceItems = [
-      {
-        id: 1,
-        title: 'GDPR Data Protection',
-        description: 'Ensure compliance with GDPR data protection requirements',
-        framework: 'GDPR',
-        requirement: 'Article 32 - Security of processing',
-        status: 'compliant',
-        priority: 'high',
-        dueDate: '2024-02-15',
-        owner: 'Privacy Team',
-        evidence: 'Data protection impact assessment completed',
-        lastUpdated: '2024-01-15',
-        progress: 100
-      },
-      {
-        id: 2,
-        title: 'SOX Financial Controls',
-        description: 'Implement and maintain SOX financial reporting controls',
-        framework: 'SOX',
-        requirement: 'Section 404 - Management assessment',
-        status: 'in_progress',
-        priority: 'high',
-        dueDate: '2024-03-31',
-        owner: 'Finance Team',
-        evidence: 'Control documentation in progress',
-        lastUpdated: '2024-01-20',
-        progress: 65
-      },
-      {
-        id: 3,
-        title: 'ISO 27001 Security',
-        description: 'Maintain ISO 27001 information security management system',
-        framework: 'ISO 27001',
-        requirement: 'A.8.1.1 - Inventory of assets',
-        status: 'non_compliant',
-        priority: 'medium',
-        dueDate: '2024-04-30',
-        owner: 'Security Team',
-        evidence: 'Asset inventory needs updating',
-        lastUpdated: '2024-01-10',
-        progress: 30
-      }
-    ];
-    setComplianceItems(mockComplianceItems);
+    loadComplianceItems();
   }, []);
+
+  const loadComplianceItems = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      const response = await complianceService.getAllComplianceItems();
+      setComplianceItems(response.data || []);
+    } catch (err) {
+      console.error('Error loading compliance items:', err);
+      setError('Failed to load compliance items. Please try again.');
+      // Fallback to empty array instead of mock data
+      setComplianceItems([]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleOpenDialog = (item = null) => {
     if (item) {
@@ -111,17 +90,7 @@ const ComplianceManagement = ({ apiCall, onSuccess, loading }) => {
       setFormData(item);
     } else {
       setEditingItem(null);
-      setFormData({
-        title: '',
-        description: '',
-        framework: '',
-        requirement: '',
-        status: 'pending',
-        priority: 'medium',
-        dueDate: '',
-        owner: '',
-        evidence: ''
-      });
+      setFormData(getDefaultFormData());
     }
     setOpenDialog(true);
   };
@@ -133,6 +102,9 @@ const ComplianceManagement = ({ apiCall, onSuccess, loading }) => {
 
   const handleSaveItem = async () => {
     try {
+      setIsLoading(true);
+      setError(null);
+      
       const progress = calculateProgress(formData.status);
       const itemData = { 
         ...formData, 
@@ -141,28 +113,37 @@ const ComplianceManagement = ({ apiCall, onSuccess, loading }) => {
       };
       
       if (editingItem) {
-        const updatedItems = complianceItems.map(item => 
-          item.id === editingItem.id ? { ...itemData, id: editingItem.id } : item
-        );
-        setComplianceItems(updatedItems);
+        const updatedItem = await complianceService.updateComplianceItem(editingItem.id, itemData);
+        await loadComplianceItems(); // Reload from API
         onSuccess('Compliance item updated successfully');
       } else {
-        const newItem = {
-          ...itemData,
-          id: complianceItems.length + 1
-        };
-        setComplianceItems([...complianceItems, newItem]);
+        const newItem = await complianceService.createComplianceItem(itemData);
+        await loadComplianceItems(); // Reload from API
         onSuccess('Compliance item created successfully');
       }
       handleCloseDialog();
     } catch (error) {
       console.error('Error saving compliance item:', error);
+      setError('Failed to save compliance item. Please try again.');
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const handleDeleteItem = (itemId) => {
-    setComplianceItems(complianceItems.filter(item => item.id !== itemId));
-    onSuccess('Compliance item deleted successfully');
+  const handleDeleteItem = async (itemId) => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      
+      await complianceService.deleteComplianceItem(itemId);
+      await loadComplianceItems(); // Reload from API
+      onSuccess('Compliance item deleted successfully');
+    } catch (error) {
+      console.error('Error deleting compliance item:', error);
+      setError('Failed to delete compliance item. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const calculateProgress = (status) => {
@@ -320,7 +301,33 @@ const ComplianceManagement = ({ apiCall, onSuccess, loading }) => {
           <Typography variant="h6" gutterBottom>
             Compliance Items
           </Typography>
-          <TableContainer component={Paper} variant="outlined">
+          
+          {isLoading ? (
+            <Box display="flex" justifyContent="center" alignItems="center" minHeight="200px">
+              <CircularProgress />
+            </Box>
+          ) : error ? (
+            <Alert 
+              severity="error" 
+              action={
+                <Button color="inherit" size="small" onClick={loadComplianceItems}>
+                  Retry
+                </Button>
+              }
+            >
+              {error}
+            </Alert>
+          ) : complianceItems.length === 0 ? (
+            <Box textAlign="center" py={4}>
+              <Typography variant="h6" color="textSecondary">
+                No compliance items found
+              </Typography>
+              <Typography variant="body2" color="textSecondary">
+                Click "Add Compliance Item" to get started
+              </Typography>
+            </Box>
+          ) : (
+            <TableContainer component={Paper} variant="outlined">
             <Table>
               <TableHead>
                 <TableRow>
@@ -372,12 +379,12 @@ const ComplianceManagement = ({ apiCall, onSuccess, loading }) => {
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 100 }}>
                         <LinearProgress 
                           variant="determinate" 
-                          value={item.progress} 
+                          value={calculateProgress(item.status)} 
                           color={getStatusColor(item.status)}
                           sx={{ flexGrow: 1 }}
                         />
                         <Typography variant="body2" fontWeight={600}>
-                          {item.progress}%
+                          {calculateProgress(item.status)}%
                         </Typography>
                       </Box>
                     </TableCell>
@@ -415,6 +422,7 @@ const ComplianceManagement = ({ apiCall, onSuccess, loading }) => {
               </TableBody>
             </Table>
           </TableContainer>
+          )}
         </CardContent>
       </Card>
 

@@ -26,7 +26,9 @@ import {
   TableRow,
   Paper,
   Tooltip,
-  LinearProgress
+  LinearProgress,
+  Alert,
+  CircularProgress
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -38,12 +40,18 @@ import {
   TrendingFlat as MediumRiskIcon,
   TrendingDown as LowRiskIcon
 } from '@mui/icons-material';
+import { riskService } from '../services/riskService';
 
 const RiskManagement = ({ apiCall, onSuccess, loading }) => {
   const [risks, setRisks] = useState([]);
   const [openDialog, setOpenDialog] = useState(false);
   const [editingRisk, setEditingRisk] = useState(null);
-  const [formData, setFormData] = useState({
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [formData, setFormData] = useState({});
+
+  // Generate default form data
+  const getDefaultFormData = () => ({
     title: '',
     description: '',
     category: '',
@@ -54,51 +62,26 @@ const RiskManagement = ({ apiCall, onSuccess, loading }) => {
     mitigationPlan: ''
   });
 
-  // Mock data for demonstration
+  // Load risks from API
   useEffect(() => {
-    const mockRisks = [
-      {
-        id: 1,
-        title: 'Data Breach Risk',
-        description: 'Potential unauthorized access to sensitive customer data',
-        category: 'Security',
-        impact: 'high',
-        probability: 'medium',
-        status: 'open',
-        owner: 'Security Team',
-        mitigationPlan: 'Implement multi-factor authentication and regular security audits',
-        lastUpdated: '2024-01-15',
-        score: 75
-      },
-      {
-        id: 2,
-        title: 'Regulatory Compliance Risk',
-        description: 'Risk of non-compliance with new GDPR regulations',
-        category: 'Compliance',
-        impact: 'high',
-        probability: 'low',
-        status: 'mitigated',
-        owner: 'Compliance Team',
-        mitigationPlan: 'Updated privacy policies and implemented data protection measures',
-        lastUpdated: '2024-01-10',
-        score: 30
-      },
-      {
-        id: 3,
-        title: 'Operational Disruption',
-        description: 'Risk of system downtime affecting business operations',
-        category: 'Operational',
-        impact: 'medium',
-        probability: 'medium',
-        status: 'monitoring',
-        owner: 'IT Team',
-        mitigationPlan: 'Implemented backup systems and disaster recovery procedures',
-        lastUpdated: '2024-01-20',
-        score: 50
-      }
-    ];
-    setRisks(mockRisks);
+    loadRisks();
   }, []);
+
+  const loadRisks = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      const response = await riskService.getAllRisks();
+      setRisks(response.data || []);
+    } catch (err) {
+      console.error('Error loading risks:', err);
+      setError('Failed to load risks. Please try again.');
+      // Fallback to empty array instead of mock data
+      setRisks([]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleOpenDialog = (risk = null) => {
     if (risk) {
@@ -106,16 +89,7 @@ const RiskManagement = ({ apiCall, onSuccess, loading }) => {
       setFormData(risk);
     } else {
       setEditingRisk(null);
-      setFormData({
-        title: '',
-        description: '',
-        category: '',
-        impact: 'medium',
-        probability: 'medium',
-        status: 'open',
-        owner: '',
-        mitigationPlan: ''
-      });
+      setFormData(getDefaultFormData());
     }
     setOpenDialog(true);
   };
@@ -126,39 +100,79 @@ const RiskManagement = ({ apiCall, onSuccess, loading }) => {
   };
 
   const handleSaveRisk = async () => {
+    // Validate required fields
+    if (!formData.title?.trim()) {
+      setError('Title is required');
+      return;
+    }
+    if (!formData.description?.trim()) {
+      setError('Description is required');
+      return;
+    }
+    
     try {
-      const riskScore = calculateRiskScore(formData.impact, formData.probability);
-      const riskData = { ...formData, score: riskScore, lastUpdated: new Date().toISOString().split('T')[0] };
+      setIsLoading(true);
+      setError(null);
+      
+      const riskData = {
+        ...formData,
+        lastUpdated: new Date().toISOString().split('T')[0]
+      };
       
       if (editingRisk) {
-        const updatedRisks = risks.map(r => 
-          r.id === editingRisk.id ? { ...riskData, id: editingRisk.id } : r
-        );
-        setRisks(updatedRisks);
+        await riskService.updateRisk(editingRisk.id, riskData);
+        await loadRisks(); // Reload from API
         onSuccess('Risk updated successfully');
       } else {
-        const newRisk = {
-          ...riskData,
-          id: risks.length + 1
-        };
-        setRisks([...risks, newRisk]);
+        await riskService.createRisk(riskData);
+        await loadRisks(); // Reload from API
         onSuccess('Risk created successfully');
       }
       handleCloseDialog();
     } catch (error) {
       console.error('Error saving risk:', error);
+      setError('Failed to save risk. Please try again.');
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const handleDeleteRisk = (riskId) => {
-    setRisks(risks.filter(r => r.id !== riskId));
-    onSuccess('Risk deleted successfully');
+  const handleDeleteRisk = async (riskId) => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      await riskService.deleteRisk(riskId);
+      await loadRisks(); // Reload from API
+      onSuccess('Risk deleted successfully');
+    } catch (error) {
+      console.error('Error deleting risk:', error);
+      setError('Failed to delete risk. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const calculateRiskScore = (impact, probability) => {
     const impactScores = { low: 1, medium: 2, high: 3 };
     const probabilityScores = { low: 1, medium: 2, high: 3 };
-    return impactScores[impact] * probabilityScores[probability] * 25; // Scale to 0-100
+    
+    // Validate inputs
+    if (!impactScores.hasOwnProperty(impact) || !probabilityScores.hasOwnProperty(probability)) {
+      return 0;
+    }
+    
+    // Calculate raw score (range 1-9)
+    const raw = impactScores[impact] * probabilityScores[probability];
+    
+    // Normalize to 0-100: ((raw - 1) / 8) * 100
+    const normalized = ((raw - 1) / 8) * 100;
+    
+    // Clamp to 0-100 and round
+    return Math.max(0, Math.min(100, Math.round(normalized)));
+  };
+
+  const computeRiskScore = (risk) => {
+    return calculateRiskScore(risk.impact, risk.probability);
   };
 
   const getRiskIcon = (score) => {
@@ -188,8 +202,22 @@ const RiskManagement = ({ apiCall, onSuccess, loading }) => {
     }
   };
 
+  if (isLoading && risks.length === 0) {
+    return (
+      <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
+        <CircularProgress />
+      </Box>
+    );
+  }
+
   return (
     <Box>
+      {error && (
+        <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
+          {error}
+        </Alert>
+      )}
+      
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
         <Typography variant="h4" component="h1" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <RiskIcon />
@@ -199,6 +227,7 @@ const RiskManagement = ({ apiCall, onSuccess, loading }) => {
           variant="contained"
           startIcon={<AddIcon />}
           onClick={() => handleOpenDialog()}
+          disabled={isLoading}
           sx={{ textTransform: 'none' }}
         >
           New Risk
@@ -226,7 +255,7 @@ const RiskManagement = ({ apiCall, onSuccess, loading }) => {
                 High Risk
               </Typography>
               <Typography variant="h4" color="error.main">
-                {risks.filter(r => r.score >= 70).length}
+                {risks.filter(r => computeRiskScore(r) >= 70).length}
               </Typography>
             </CardContent>
           </Card>
@@ -238,7 +267,7 @@ const RiskManagement = ({ apiCall, onSuccess, loading }) => {
                 Medium Risk
               </Typography>
               <Typography variant="h4" color="warning.main">
-                {risks.filter(r => r.score >= 40 && r.score < 70).length}
+                {risks.filter(r => computeRiskScore(r) >= 40 && computeRiskScore(r) < 70).length}
               </Typography>
             </CardContent>
           </Card>
@@ -250,7 +279,7 @@ const RiskManagement = ({ apiCall, onSuccess, loading }) => {
                 Low Risk
               </Typography>
               <Typography variant="h4" color="success.main">
-                {risks.filter(r => r.score < 40).length}
+                {risks.filter(r => computeRiskScore(r) < 40).length}
               </Typography>
             </CardContent>
           </Card>
@@ -272,19 +301,19 @@ const RiskManagement = ({ apiCall, onSuccess, loading }) => {
                       <Typography variant="subtitle2" fontWeight={600}>
                         {risk.title}
                       </Typography>
-                      {getRiskIcon(risk.score)}
+                      {getRiskIcon(computeRiskScore(risk))}
                     </Box>
                     <Typography variant="body2" color="textSecondary" sx={{ mb: 2 }}>
                       {risk.description}
                     </Typography>
                     <Box sx={{ mb: 2 }}>
                       <Typography variant="body2" color="textSecondary">
-                        Risk Score: {risk.score}/100
+                        Risk Score: {computeRiskScore(risk)}/100
                       </Typography>
                       <LinearProgress 
                         variant="determinate" 
-                        value={risk.score} 
-                        color={getRiskColor(risk.score)}
+                        value={computeRiskScore(risk)} 
+                        color={getRiskColor(computeRiskScore(risk))}
                         sx={{ mt: 0.5 }}
                       />
                     </Box>
@@ -362,9 +391,9 @@ const RiskManagement = ({ apiCall, onSuccess, loading }) => {
                     </TableCell>
                     <TableCell>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        {getRiskIcon(risk.score)}
+                        {getRiskIcon(computeRiskScore(risk))}
                         <Typography variant="body2" fontWeight={600}>
-                          {risk.score}
+                          {computeRiskScore(risk)}
                         </Typography>
                       </Box>
                     </TableCell>

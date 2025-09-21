@@ -5,24 +5,28 @@ FastAPI microservice for GRC Risk Management
 
 from fastapi import FastAPI, HTTPException, Depends, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from sqlalchemy import create_engine, Column, String, Text, DateTime, Boolean, Integer, ForeignKey, DECIMAL
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker, Session, relationship
+from sqlalchemy import create_engine, Column, String, Text, DateTime, Boolean, Integer, ForeignKey, DECIMAL, select, func
+from sqlalchemy.orm import DeclarativeBase, sessionmaker, Session, relationship, Mapped, mapped_column
 from pydantic import BaseModel, Field, validator
 from typing import List, Optional, Dict, Any
 from datetime import datetime, date
 import uuid
 import logging
+import os
 from enum import Enum
 
-# Import vector service
+# Validate required environment variables immediately
+DATABASE_URL = os.getenv("DATABASE_URL")
+if not DATABASE_URL:
+    raise ValueError(
+        "DATABASE_URL environment variable is required but not set. "
+        "Please set the DATABASE_URL environment variable with your database connection string."
+    )
+
+# Import shared utilities
 import sys
-import os
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'vector-db'))
-import sys
-import os
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'ai-agents'))
-from simple_vector_store import SimpleVectorStore
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', '..', 'shared', 'utils'))
+from vector_store import SimpleVectorStore
 
 # Mock vector service for compatibility
 class MockVectorService:
@@ -30,20 +34,147 @@ class MockVectorService:
         self.vector_store = SimpleVectorStore()
     
     async def add_documents(self, documents, metadatas=None):
-        return self.vector_store.add_documents(documents, metadatas)
+        # Generate IDs for documents
+        import uuid
+        ids = [str(uuid.uuid4()) for _ in documents]
+        
+        # Generate simple embeddings (zeros for now - in real implementation would use proper embedding model)
+        embeddings = [[0.0] * 384 for _ in documents]  # 384 is a common embedding dimension
+        
+        return self.vector_store.add(ids, embeddings, metadatas, documents)
     
     async def search(self, query, n_results=5):
-        return self.vector_store.search(query, n_results)
+        # Generate simple query embedding (zeros for now - in real implementation would use proper embedding model)
+        query_embedding = [0.0] * 384  # 384 is a common embedding dimension
+        
+        return self.vector_store.query([query_embedding], n_results)
+    
+    async def add_risk_document(self, content, title, risk_id, organization_id, risk_type=None, metadata=None):
+        """Add a risk document to the vector store"""
+        try:
+            import uuid
+            
+            # Create document ID
+            doc_id = str(uuid.uuid4())
+            
+            # Generate simple embedding (zeros for now - in real implementation would use proper embedding model)
+            embedding = [0.0] * 384  # 384 is a common embedding dimension
+            
+            # Prepare metadata
+            doc_metadata = {
+                "risk_id": risk_id,
+                "title": title,
+                "organization_id": organization_id,
+                "risk_type": risk_type,
+                "collection_type": "risks",
+                "document": content
+            }
+            
+            # Merge with additional metadata if provided
+            if metadata:
+                doc_metadata.update(metadata)
+            
+            # Add to vector store
+            return self.vector_store.add([doc_id], [embedding], [doc_metadata], [content])
+        except Exception as e:
+            logger.error(f"Failed to add risk document: {e}")
+            return {"status": "error", "message": str(e)}
+    
+    async def update_document(self, doc_id, content, metadata=None, collection_type=None):
+        """Update a document in the vector store"""
+        try:
+            # Generate simple embedding (zeros for now - in real implementation would use proper embedding model)
+            embedding = [0.0] * 384  # 384 is a common embedding dimension
+            
+            # Prepare metadata
+            doc_metadata = {
+                "doc_id": doc_id, 
+                "collection_type": collection_type,
+                "document": content
+            }
+            if metadata:
+                doc_metadata.update(metadata)
+            
+            # For mock implementation, we'll add the updated document
+            # In a real vector store, this would update the existing document
+            return self.vector_store.add([doc_id], [embedding], [doc_metadata], [content])
+        except Exception as e:
+            logger.error(f"Failed to update document: {e}")
+            return {"status": "error", "message": str(e)}
+    
+    async def delete_document(self, doc_id, collection_type=None):
+        """Delete a document from the vector store"""
+        try:
+            # Delete from vector store
+            self.vector_store.delete([doc_id])
+            logger.info(f"Deleted document {doc_id} from collection {collection_type}")
+            return {"status": "deleted", "doc_id": doc_id}
+        except Exception as e:
+            logger.error(f"Failed to delete document: {e}")
+            return {"status": "error", "message": str(e)}
+    
+    async def search_similar_documents(self, query, n_results=5, collection_type=None, filters=None, organization_id=None):
+        """Search for similar documents"""
+        try:
+            # Use the existing search method
+            results = await self.search(query, n_results)
+            
+            # Convert results to the expected format and apply filters
+            filtered_results = []
+            if results and 'ids' in results and results['ids']:
+                for i, doc_id in enumerate(results['ids'][0]):
+                    if i < len(results['metadatas'][0]):
+                        metadata = results['metadatas'][0][i]
+                        
+                        # Apply collection type filter if specified
+                        if collection_type and metadata.get("collection_type") != collection_type:
+                            continue
+                        
+                        # Apply organization filter if specified
+                        if organization_id and metadata.get("organization_id") != organization_id:
+                            continue
+                        
+                        # Format result
+                        result = {
+                            "id": doc_id,
+                            "document": results['documents'][0][i] if i < len(results['documents'][0]) else "",
+                            "metadata": metadata,
+                            "distance": results['distances'][0][i] if i < len(results['distances'][0]) else 0
+                        }
+                        filtered_results.append(result)
+            
+            return filtered_results
+        except Exception as e:
+            logger.error(f"Failed to search similar documents: {e}")
+            return []
+    
+    async def get_collection_stats(self, collection_name):
+        """Get statistics for a collection"""
+        try:
+            # Get actual count from vector store
+            total_documents = self.vector_store.count()
+            
+            return {
+                "collection_name": collection_name,
+                "total_documents": total_documents,
+                "status": "active",
+                "mock_stats": False
+            }
+        except Exception as e:
+            logger.error(f"Failed to get collection stats: {e}")
+            return {"status": "error", "message": str(e)}
 
 vector_service = MockVectorService()
 
 logger = logging.getLogger(__name__)
 
 # Database setup
-DATABASE_URL = "postgresql://grc_user:grc_password@localhost:5432/grc_platform"
+
 engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-Base = declarative_base()
+
+class Base(DeclarativeBase):
+    pass
 
 # Security
 security = HTTPBearer()
@@ -74,95 +205,106 @@ class TreatmentType(str, Enum):
 class Organization(Base):
     __tablename__ = "organizations"
     
-    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
-    name = Column(String(255), nullable=False)
-    industry = Column(String(100))
-    size = Column(String(50))
-    location = Column(String(255))
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    industry: Mapped[Optional[str]] = mapped_column(String(100))
+    size: Mapped[Optional[str]] = mapped_column(String(50))
+    location: Mapped[Optional[str]] = mapped_column(String(255))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    users: Mapped[List["User"]] = relationship("User", back_populates="organization")
+    risks: Mapped[List["Risk"]] = relationship("Risk", back_populates="organization")
+    risk_categories: Mapped[List["RiskCategory"]] = relationship("RiskCategory", back_populates="organization")
 
 class User(Base):
     __tablename__ = "users"
     
-    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
-    email = Column(String(255), unique=True, nullable=False)
-    username = Column(String(100), unique=True, nullable=False)
-    first_name = Column(String(100), nullable=False)
-    last_name = Column(String(100), nullable=False)
-    organization_id = Column(String, ForeignKey("organizations.id"))
-    role = Column(String(50), nullable=False, default="USER")
-    is_active = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
+    username: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
+    first_name: Mapped[str] = mapped_column(String(100), nullable=False)
+    last_name: Mapped[str] = mapped_column(String(100), nullable=False)
+    organization_id: Mapped[Optional[str]] = mapped_column(String, ForeignKey("organizations.id"))
+    role: Mapped[str] = mapped_column(String(50), nullable=False, default="USER")
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     
-    organization = relationship("Organization", backref="users")
+    organization: Mapped[Optional["Organization"]] = relationship("Organization", back_populates="users")
+    owned_risks: Mapped[List["Risk"]] = relationship("Risk", foreign_keys="Risk.owner_id", back_populates="owner")
+    created_risks: Mapped[List["Risk"]] = relationship("Risk", foreign_keys="Risk.created_by", back_populates="creator")
+    risk_assessments: Mapped[List["RiskAssessment"]] = relationship("RiskAssessment", back_populates="assessor")
+    risk_treatments: Mapped[List["RiskTreatment"]] = relationship("RiskTreatment", back_populates="owner")
 
 class RiskCategory(Base):
     __tablename__ = "risk_categories"
     
-    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
-    name = Column(String(255), nullable=False)
-    description = Column(Text)
-    organization_id = Column(String, ForeignKey("organizations.id"))
-    created_at = Column(DateTime, default=datetime.utcnow)
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    description: Mapped[Optional[str]] = mapped_column(Text)
+    organization_id: Mapped[Optional[str]] = mapped_column(String, ForeignKey("organizations.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     
-    organization = relationship("Organization", backref="risk_categories")
+    organization: Mapped[Optional["Organization"]] = relationship("Organization", back_populates="risk_categories")
+    risks: Mapped[List["Risk"]] = relationship("Risk", back_populates="category")
 
 class Risk(Base):
     __tablename__ = "risks"
     
-    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
-    title = Column(String(500), nullable=False)
-    description = Column(Text)
-    category_id = Column(String, ForeignKey("risk_categories.id"))
-    risk_type = Column(String(100))
-    impact_score = Column(Integer)
-    probability_score = Column(Integer)
-    inherent_risk_score = Column(Integer)
-    residual_risk_score = Column(Integer)
-    status = Column(String(50), default=RiskStatus.IDENTIFIED)
-    organization_id = Column(String, ForeignKey("organizations.id"))
-    owner_id = Column(String, ForeignKey("users.id"))
-    created_by = Column(String, ForeignKey("users.id"))
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    title: Mapped[str] = mapped_column(String(500), nullable=False)
+    description: Mapped[Optional[str]] = mapped_column(Text)
+    category_id: Mapped[Optional[str]] = mapped_column(String, ForeignKey("risk_categories.id"))
+    risk_type: Mapped[Optional[str]] = mapped_column(String(100))
+    impact_score: Mapped[Optional[int]] = mapped_column(Integer)
+    probability_score: Mapped[Optional[int]] = mapped_column(Integer)
+    inherent_risk_score: Mapped[Optional[int]] = mapped_column(Integer)
+    residual_risk_score: Mapped[Optional[int]] = mapped_column(Integer)
+    status: Mapped[str] = mapped_column(String(50), default=RiskStatus.IDENTIFIED)
+    organization_id: Mapped[Optional[str]] = mapped_column(String, ForeignKey("organizations.id"))
+    owner_id: Mapped[Optional[str]] = mapped_column(String, ForeignKey("users.id"))
+    created_by: Mapped[Optional[str]] = mapped_column(String, ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
-    category = relationship("RiskCategory", backref="risks")
-    organization = relationship("Organization", backref="risks")
-    owner = relationship("User", foreign_keys=[owner_id], backref="owned_risks")
-    creator = relationship("User", foreign_keys=[created_by], backref="created_risks")
+    category: Mapped[Optional["RiskCategory"]] = relationship("RiskCategory", back_populates="risks")
+    organization: Mapped[Optional["Organization"]] = relationship("Organization", back_populates="risks")
+    owner: Mapped[Optional["User"]] = relationship("User", foreign_keys=[owner_id], back_populates="owned_risks")
+    creator: Mapped[Optional["User"]] = relationship("User", foreign_keys=[created_by], back_populates="created_risks")
+    assessments: Mapped[List["RiskAssessment"]] = relationship("RiskAssessment", back_populates="risk")
+    treatments: Mapped[List["RiskTreatment"]] = relationship("RiskTreatment", back_populates="risk")
 
 class RiskAssessment(Base):
     __tablename__ = "risk_assessments"
     
-    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
-    risk_id = Column(String, ForeignKey("risks.id"))
-    assessment_date = Column(DateTime, nullable=False)
-    assessor_id = Column(String, ForeignKey("users.id"))
-    impact_score = Column(Integer)
-    probability_score = Column(Integer)
-    risk_score = Column(Integer)
-    assessment_notes = Column(Text)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    risk_id: Mapped[Optional[str]] = mapped_column(String, ForeignKey("risks.id"))
+    assessment_date: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    assessor_id: Mapped[Optional[str]] = mapped_column(String, ForeignKey("users.id"))
+    impact_score: Mapped[Optional[int]] = mapped_column(Integer)
+    probability_score: Mapped[Optional[int]] = mapped_column(Integer)
+    risk_score: Mapped[Optional[int]] = mapped_column(Integer)
+    assessment_notes: Mapped[Optional[str]] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     
-    risk = relationship("Risk", backref="assessments")
-    assessor = relationship("User", backref="risk_assessments")
+    risk: Mapped[Optional["Risk"]] = relationship("Risk", back_populates="assessments")
+    assessor: Mapped[Optional["User"]] = relationship("User", back_populates="risk_assessments")
 
 class RiskTreatment(Base):
     __tablename__ = "risk_treatments"
     
-    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
-    risk_id = Column(String, ForeignKey("risks.id"))
-    treatment_type = Column(String(50), nullable=False)
-    description = Column(Text, nullable=False)
-    owner_id = Column(String, ForeignKey("users.id"))
-    due_date = Column(DateTime)
-    status = Column(String(50), default="PLANNED")
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    risk_id: Mapped[Optional[str]] = mapped_column(String, ForeignKey("risks.id"))
+    treatment_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    description: Mapped[str] = mapped_column(Text, nullable=False)
+    owner_id: Mapped[Optional[str]] = mapped_column(String, ForeignKey("users.id"))
+    due_date: Mapped[Optional[datetime]] = mapped_column(DateTime)
+    status: Mapped[str] = mapped_column(String(50), default="PLANNED")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
-    risk = relationship("Risk", backref="treatments")
-    owner = relationship("User", backref="risk_treatments")
+    risk: Mapped[Optional["Risk"]] = relationship("Risk", back_populates="treatments")
+    owner: Mapped[Optional["User"]] = relationship("User", back_populates="risk_treatments")
 
 # Pydantic Models
 class RiskCreate(BaseModel):
@@ -245,12 +387,44 @@ def get_db():
         db.close()
 
 def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
-    # Simplified authentication - in production, implement proper JWT validation
-    return {
-        "id": "user-123",
-        "organization_id": "org-123",
-        "role": "RISK_MANAGER"
-    }
+    """Validate JWT token and extract user information"""
+    try:
+        import jwt
+        from jwt.exceptions import InvalidTokenError, ExpiredSignatureError
+        
+        # Get JWT secret from environment
+        jwt_secret = os.getenv("JWT_SECRET_KEY")
+        if not jwt_secret:
+            raise HTTPException(status_code=500, detail="JWT secret not configured")
+        
+        # Decode and validate JWT token
+        token = credentials.credentials
+        payload = jwt.decode(
+            token,
+            jwt_secret,
+            algorithms=["HS256"],
+            options={"verify_exp": True, "verify_aud": False}
+        )
+        
+        # Extract user information from token claims
+        user_id = payload.get("user_id")
+        organization_id = payload.get("organization_id")
+        role = payload.get("role")
+        
+        if not all([user_id, organization_id, role]):
+            raise HTTPException(status_code=401, detail="Invalid token claims")
+        
+        return {
+            "id": user_id,
+            "organization_id": organization_id,
+            "role": role
+        }
+        
+    except (InvalidTokenError, ExpiredSignatureError) as e:
+        raise HTTPException(status_code=401, detail=f"Invalid token: {str(e)}")
+    except Exception as e:
+        logger.error(f"Authentication error: {e}")
+        raise HTTPException(status_code=401, detail="Authentication failed")
 
 def calculate_risk_score(impact: int, probability: int) -> int:
     """Calculate risk score based on impact and probability"""
@@ -321,6 +495,7 @@ async def create_risk(
         
     except Exception as e:
         logger.error(f"Error creating risk: {e}")
+        db.rollback()
         raise HTTPException(status_code=500, detail="Failed to create risk")
 
 @app.get("/risks", response_model=List[RiskResponse])
@@ -336,33 +511,34 @@ async def get_risks(
 ):
     """Get risks with filtering"""
     try:
-        query = db.query(Risk)
+        stmt = select(Risk)
         
         # Filter by organization
         if organization_id:
-            query = query.filter(Risk.organization_id == organization_id)
+            stmt = stmt.where(Risk.organization_id == organization_id)
         else:
-            query = query.filter(Risk.organization_id == current_user["organization_id"])
+            stmt = stmt.where(Risk.organization_id == current_user["organization_id"])
         
         # Filter by status
         if status:
-            query = query.filter(Risk.status == status)
+            stmt = stmt.where(Risk.status == status)
         
         # Filter by risk type
         if risk_type:
-            query = query.filter(Risk.risk_type == risk_type)
+            stmt = stmt.where(Risk.risk_type == risk_type)
         
         # Filter by category
         if category_id:
-            query = query.filter(Risk.category_id == category_id)
+            stmt = stmt.where(Risk.category_id == category_id)
         
         # Apply pagination
-        risks = query.offset(offset).limit(limit).all()
+        risks = db.scalars(stmt.offset(offset).limit(limit)).all()
         
         return risks
         
     except Exception as e:
         logger.error(f"Error getting risks: {e}")
+        db.rollback()
         raise HTTPException(status_code=500, detail="Failed to get risks")
 
 @app.get("/risks/{risk_id}", response_model=RiskResponse)
@@ -373,10 +549,11 @@ async def get_risk(
 ):
     """Get a specific risk by ID"""
     try:
-        risk = db.query(Risk).filter(
+        risk_stmt = select(Risk).where(
             Risk.id == risk_id,
             Risk.organization_id == current_user["organization_id"]
-        ).first()
+        )
+        risk = db.scalar(risk_stmt)
         
         if not risk:
             raise HTTPException(status_code=404, detail="Risk not found")
@@ -387,6 +564,7 @@ async def get_risk(
         raise
     except Exception as e:
         logger.error(f"Error getting risk: {e}")
+        db.rollback()
         raise HTTPException(status_code=500, detail="Failed to get risk")
 
 @app.put("/risks/{risk_id}", response_model=RiskResponse)
@@ -398,16 +576,17 @@ async def update_risk(
 ):
     """Update a risk"""
     try:
-        risk = db.query(Risk).filter(
+        risk_stmt = select(Risk).where(
             Risk.id == risk_id,
             Risk.organization_id == current_user["organization_id"]
-        ).first()
+        )
+        risk = db.scalar(risk_stmt)
         
         if not risk:
             raise HTTPException(status_code=404, detail="Risk not found")
         
         # Update fields
-        update_data = risk_data.dict(exclude_unset=True)
+        update_data = risk_data.model_dump(exclude_unset=True)
         for field, value in update_data.items():
             setattr(risk, field, value)
         
@@ -424,10 +603,10 @@ async def update_risk(
         db.commit()
         db.refresh(risk)
         
-        # Update in vector database
+        # Update in vector database asynchronously
         try:
             risk_content = f"{risk.title}\n{risk.description or ''}"
-            vector_service.update_document(
+            await vector_service.update_document(
                 doc_id=risk_id,
                 content=risk_content,
                 metadata={
@@ -450,6 +629,7 @@ async def update_risk(
         raise
     except Exception as e:
         logger.error(f"Error updating risk: {e}")
+        db.rollback()
         raise HTTPException(status_code=500, detail="Failed to update risk")
 
 @app.delete("/risks/{risk_id}")
@@ -460,10 +640,11 @@ async def delete_risk(
 ):
     """Delete a risk"""
     try:
-        risk = db.query(Risk).filter(
+        risk_stmt = select(Risk).where(
             Risk.id == risk_id,
             Risk.organization_id == current_user["organization_id"]
-        ).first()
+        )
+        risk = db.scalar(risk_stmt)
         
         if not risk:
             raise HTTPException(status_code=404, detail="Risk not found")
@@ -472,9 +653,9 @@ async def delete_risk(
         db.delete(risk)
         db.commit()
         
-        # Delete from vector database
+        # Delete from vector database asynchronously
         try:
-            vector_service.delete_document(risk_id, collection_type="risks")
+            await vector_service.delete_document(risk_id, collection_type="risks")
         except Exception as e:
             logger.warning(f"Failed to delete risk from vector database: {e}")
         
@@ -485,6 +666,7 @@ async def delete_risk(
         raise
     except Exception as e:
         logger.error(f"Error deleting risk: {e}")
+        db.rollback()
         raise HTTPException(status_code=500, detail="Failed to delete risk")
 
 @app.post("/risks/search", response_model=RiskSearchResponse)
@@ -496,26 +678,37 @@ async def search_risks(
     """Search risks using AI-powered vector search"""
     try:
         # Use vector database for semantic search
-        search_results = vector_service.search_similar_documents(
+        search_results = vector_service.search(
             query=search_request.query,
-            collection_type="risks",
-            n_results=search_request.limit,
-            organization_id=current_user["organization_id"],
-            filters={
-                "risk_type": search_request.risk_type,
-                "status": search_request.status
-            } if search_request.risk_type or search_request.status else None
+            n_results=search_request.limit
         )
+        
+        # Apply filtering logic outside of vector service
+        filtered_results = []
+        for result in search_results:
+            # Check organization_id filter
+            if result.get("metadata", {}).get("organization_id") != current_user["organization_id"]:
+                continue
+                
+            # Apply risk_type filter if specified
+            if search_request.risk_type and result.get("metadata", {}).get("risk_type") != search_request.risk_type:
+                continue
+                
+            # Apply status filter if specified
+            if search_request.status and result.get("metadata", {}).get("status") != search_request.status:
+                continue
+                
+            filtered_results.append(result)
         
         # Format results
         risks = []
-        for result in search_results:
+        for result in filtered_results:
             risks.append({
-                "id": result["metadata"].get("risk_id"),
-                "title": result["metadata"].get("title"),
-                "content": result["content"][:500] + "..." if len(result["content"]) > 500 else result["content"],
-                "metadata": result["metadata"],
-                "similarity_score": 1 - result["distance"] if result["distance"] else 0
+                "id": result.get("metadata", {}).get("risk_id"),
+                "title": result.get("metadata", {}).get("title"),
+                "content": result.get("document", "")[:500] + "..." if len(result.get("document", "")) > 500 else result.get("document", ""),
+                "metadata": result.get("metadata", {}),
+                "similarity_score": 1 - result.get("distance", 0) if result.get("distance") else 0
             })
         
         return RiskSearchResponse(
@@ -526,6 +719,7 @@ async def search_risks(
         
     except Exception as e:
         logger.error(f"Error searching risks: {e}")
+        db.rollback()
         raise HTTPException(status_code=500, detail="Failed to search risks")
 
 @app.post("/risks/{risk_id}/assessments")
@@ -538,10 +732,11 @@ async def create_risk_assessment(
     """Create a risk assessment"""
     try:
         # Verify risk exists and belongs to organization
-        risk = db.query(Risk).filter(
+        risk_stmt = select(Risk).where(
             Risk.id == risk_id,
             Risk.organization_id == current_user["organization_id"]
-        ).first()
+        )
+        risk = db.scalar(risk_stmt)
         
         if not risk:
             raise HTTPException(status_code=404, detail="Risk not found")
@@ -587,6 +782,7 @@ async def create_risk_assessment(
         raise
     except Exception as e:
         logger.error(f"Error creating risk assessment: {e}")
+        db.rollback()
         raise HTTPException(status_code=500, detail="Failed to create risk assessment")
 
 @app.post("/risks/{risk_id}/treatments")
@@ -599,10 +795,11 @@ async def create_risk_treatment(
     """Create a risk treatment"""
     try:
         # Verify risk exists and belongs to organization
-        risk = db.query(Risk).filter(
+        risk_stmt = select(Risk).where(
             Risk.id == risk_id,
             Risk.organization_id == current_user["organization_id"]
-        ).first()
+        )
+        risk = db.scalar(risk_stmt)
         
         if not risk:
             raise HTTPException(status_code=404, detail="Risk not found")
@@ -632,6 +829,7 @@ async def create_risk_treatment(
         raise
     except Exception as e:
         logger.error(f"Error creating risk treatment: {e}")
+        db.rollback()
         raise HTTPException(status_code=500, detail="Failed to create risk treatment")
 
 @app.get("/risks/categories")
@@ -641,14 +839,16 @@ async def get_risk_categories(
 ):
     """Get risk categories"""
     try:
-        categories = db.query(RiskCategory).filter(
+        categories_stmt = select(RiskCategory).where(
             RiskCategory.organization_id == current_user["organization_id"]
-        ).all()
+        )
+        categories = db.scalars(categories_stmt).all()
         
         return [{"id": cat.id, "name": cat.name, "description": cat.description} for cat in categories]
         
     except Exception as e:
         logger.error(f"Error getting risk categories: {e}")
+        db.rollback()
         raise HTTPException(status_code=500, detail="Failed to get risk categories")
 
 @app.get("/risks/stats")
@@ -656,67 +856,63 @@ async def get_risk_stats(
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Get risk statistics with mock data fallback"""
+    """Get risk statistics"""
     try:
-        total_risks = db.query(Risk).filter(
+        total_risks_stmt = select(func.count(Risk.id)).where(
             Risk.organization_id == current_user["organization_id"]
-        ).count()
+        )
+        total_risks = db.scalar(total_risks_stmt)
         
-        risks_by_status = db.query(
-            Risk.status,
-            db.func.count(Risk.id)
-        ).filter(
-            Risk.organization_id == current_user["organization_id"]
-        ).group_by(Risk.status).all()
-        
-        # If no data exists, return mock data
+        # Return empty stats if no data exists
         if total_risks == 0:
             return {
-                "total_risks": 35,
-                "risks_by_status": {
-                    "Active": 28,
-                    "Mitigated": 5,
-                    "Closed": 2
-                },
-                "risks_by_level": {
-                    "High": 7,
-                    "Medium": 18,
-                    "Low": 10
-                },
-                "risks_by_type": {
-                    "Operational Risk": 12,
-                    "Compliance Risk": 8,
-                    "Technology Risk": 6,
-                    "Financial Risk": 5,
-                    "Strategic Risk": 4
-                },
-                "high_risks": 7,
-                "overdue_risks": 3,
-                "mock_data": True
+                "total_risks": 0,
+                "risks_by_status": {},
+                "message": "No risk data available"
             }
         
-        risks_by_type = db.query(
-            Risk.risk_type,
-            db.func.count(Risk.id)
-        ).filter(
+        risks_by_status_stmt = select(
+            Risk.status,
+            func.count(Risk.id)
+        ).where(
             Risk.organization_id == current_user["organization_id"]
-        ).group_by(Risk.risk_type).all()
+        ).group_by(Risk.status)
+        risks_by_status_result = db.execute(risks_by_status_stmt)
+        risks_by_status = risks_by_status_result.all()
         
-        high_risks = db.query(Risk).filter(
+        risks_by_type_stmt = select(
+            Risk.risk_type,
+            func.count(Risk.id)
+        ).where(
+            Risk.organization_id == current_user["organization_id"]
+        ).group_by(Risk.risk_type)
+        risks_by_type_result = db.execute(risks_by_type_stmt)
+        risks_by_type = risks_by_type_result.all()
+        
+        high_risks_stmt = select(func.count(Risk.id)).where(
             Risk.organization_id == current_user["organization_id"],
             Risk.inherent_risk_score >= 15  # High risk threshold
-        ).count()
+        )
+        high_risks = db.scalar(high_risks_stmt)
+        
+        # Get vector database stats asynchronously
+        try:
+            vector_stats = await vector_service.get_collection_stats("risks")
+        except Exception as e:
+            logger.warning(f"Failed to get vector stats: {e}")
+            vector_stats = {"error": "Vector stats unavailable"}
         
         return {
             "total_risks": total_risks,
             "risks_by_status": {status: count for status, count in risks_by_status},
             "risks_by_type": {risk_type: count for risk_type, count in risks_by_type},
             "high_risks": high_risks,
-            "vector_db_stats": vector_service.get_collection_stats("risks")
+            "vector_db_stats": vector_stats
         }
         
     except Exception as e:
         logger.error(f"Error getting risk stats: {e}")
+        db.rollback()
         raise HTTPException(status_code=500, detail="Failed to get risk stats")
 
 if __name__ == "__main__":

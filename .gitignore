@@ -186,3 +186,8 @@ deployment/kubernetes/secrets/
 # Local development
 .local/
 local/
+
+# Production secrets - NEVER COMMIT
+production_secrets.env
+*.secrets
+secrets/

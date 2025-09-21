@@ -35,42 +35,55 @@ class HuggingFaceModelManager:
             self.models["document_classifier"] = pipeline(
                 "text-classification",
                 model="distilbert-base-uncased",
-                device=0 if self.device == "cuda" else -1
+                device=0 if self.device == "cuda" else -1,
+                trust_remote_code=False  # Security: prevent execution of arbitrary code
             )
             
             # Question Answering for Compliance
             self.models["qa_model"] = pipeline(
                 "question-answering",
                 model="distilbert-base-uncased-distilled-squad",
-                device=0 if self.device == "cuda" else -1
+                device=0 if self.device == "cuda" else -1,
+                trust_remote_code=False  # Security: prevent execution of arbitrary code
             )
             
             # Named Entity Recognition for Regulations
             self.models["ner_model"] = pipeline(
                 "ner",
                 model="dbmdz/bert-large-cased-finetuned-conll03-english",
-                device=0 if self.device == "cuda" else -1
+                device=0 if self.device == "cuda" else -1,
+                trust_remote_code=False  # Security: prevent execution of arbitrary code
             )
             
             # Text Summarization for Risk Reports
             self.models["summarizer"] = pipeline(
                 "summarization",
                 model="facebook/bart-large-cnn",
-                device=0 if self.device == "cuda" else -1
+                device=0 if self.device == "cuda" else -1,
+                trust_remote_code=False  # Security: prevent execution of arbitrary code
             )
             
-            # Financial Sentiment Analysis (BFSI)
+            # Financial Sentiment Analysis (BFSI) - Primary Model
             self.models["finbert"] = pipeline(
                 "text-classification",
                 model="ProsusAI/finbert",
-                device=0 if self.device == "cuda" else -1
+                device=0 if self.device == "cuda" else -1,
+                trust_remote_code=False  # Security: prevent execution of arbitrary code
             )
+            
+            # BFSI Model Stack - Alias existing models to avoid redundant loading
+            self.models["bfsi_compliance"] = self.models["document_classifier"]
+            self.models["bfsi_summarization"] = self.models["summarizer"]
+            self.models["bfsi_ner"] = self.models["ner_model"]
+            self.models["bfsi_qa"] = self.models["qa_model"]
+            self.models["bfsi_dialog"] = self.models["dialog_model"]
             
             # Conversational AI for Compliance Q&A
             self.models["dialog_model"] = pipeline(
                 "text-generation",
                 model="microsoft/DialoGPT-medium",
-                device=0 if self.device == "cuda" else -1
+                device=0 if self.device == "cuda" else -1,
+                trust_remote_code=False  # Security: prevent execution of arbitrary code
             )
             
             logger.info("All Hugging Face models initialized successfully")
@@ -90,34 +103,79 @@ class HuggingFaceEnhancedComplianceAgent:
             "manufacturing": "microsoft/codebert-base",
             "telecom": "distilbert-base-uncased"
         }
+        # Cache for industry-specific pipelines to avoid reloading models
+        self._industry_pipeline_cache = {}
+    
+    def _get_industry_pipeline(self, industry: str):
+        """Get or create cached industry-specific pipeline"""
+        if industry not in self._industry_pipeline_cache:
+            if industry not in self.industry_models:
+                raise ValueError(f"Unsupported industry: {industry}")
+            
+            industry_model = self.industry_models[industry]
+            logger.info(f"Loading industry pipeline for {industry}: {industry_model}")
+            
+            # Create and cache the pipeline
+            self._industry_pipeline_cache[industry] = pipeline(
+                "text-classification",
+                model=industry_model,
+                device=0 if torch.cuda.is_available() else -1,
+                trust_remote_code=False  # Security: prevent execution of arbitrary code
+            )
+            logger.info(f"Successfully cached pipeline for {industry}")
+        
+        return self._industry_pipeline_cache[industry]
+    
+    def clear_pipeline_cache(self, industry: str = None):
+        """Clear cached pipelines for specific industry or all industries"""
+        if industry:
+            if industry in self._industry_pipeline_cache:
+                del self._industry_pipeline_cache[industry]
+                logger.info(f"Cleared pipeline cache for {industry}")
+        else:
+            self._industry_pipeline_cache.clear()
+            logger.info("Cleared all pipeline caches")
+    
+    def get_cached_industries(self) -> List[str]:
+        """Get list of industries with cached pipelines"""
+        return list(self._industry_pipeline_cache.keys())
     
     async def analyze_compliance_document(self, document: str, industry: str) -> Dict[str, Any]:
         """Analyze compliance document using industry-specific models"""
         try:
+            # Security: Validate and sanitize input
+            if not document or len(document.strip()) == 0:
+                raise ValueError("Document cannot be empty")
+            
+            # Limit input length to prevent abuse
+            if len(document) > 100000:  # 100KB limit
+                raise ValueError("Document too long (max 100KB)")
+            
+            # Sanitize input text - remove potential injection attempts
+            import re
+            sanitized_document = re.sub(r'[<>"\']', '', document.strip())
+            
+            # Validate industry parameter
+            if industry not in self.industry_models:
+                raise ValueError(f"Unsupported industry: {industry}")
+            
             results = {}
             
             # Document Classification
-            classification = self.model_manager.models["document_classifier"](document)
+            classification = self.model_manager.models["document_classifier"](sanitized_document)
             results["classification"] = classification
             
             # Named Entity Recognition for regulations
-            entities = self.model_manager.models["ner_model"](document)
+            entities = self.model_manager.models["ner_model"](sanitized_document)
             results["entities"] = entities
             
-            # Industry-specific analysis
-            if industry in self.industry_models:
-                industry_model = self.industry_models[industry]
-                # Load industry-specific model
-                industry_pipeline = pipeline(
-                    "text-classification",
-                    model=industry_model,
-                    device=0 if torch.cuda.is_available() else -1
-                )
-                industry_analysis = industry_pipeline(document)
-                results["industry_analysis"] = industry_analysis
+            # Industry-specific analysis using cached pipeline
+            industry_pipeline = self._get_industry_pipeline(industry)
+            industry_analysis = industry_pipeline(sanitized_document)
+            results["industry_analysis"] = industry_analysis
             
             # Compliance gap analysis
-            compliance_qa = self._analyze_compliance_gaps(document)
+            compliance_qa = self._analyze_compliance_gaps(sanitized_document)
             results["compliance_gaps"] = compliance_qa
             
             return {

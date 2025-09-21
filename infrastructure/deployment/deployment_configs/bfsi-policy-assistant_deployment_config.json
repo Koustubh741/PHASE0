@@ -1,0 +1,28 @@
+{
+  "model_name": "bfsi-policy-assistant",
+  "model_type": "ollama",
+  "deployment_method": "ollama_api",
+  "endpoint": "http://localhost:11434/api/generate",
+  "model_parameters": {
+    "temperature": 0.7,
+    "top_p": 0.9,
+    "max_tokens": 512
+  },
+  "bfsi_config": {
+    "supported_tasks": [
+      "policy_analysis",
+      "risk_assessment",
+      "compliance_guidance",
+      "implementation_advice",
+      "regulatory_framework_analysis"
+    ],
+    "specializations": [
+      "BFSI",
+      "compliance",
+      "risk_management"
+    ],
+    "max_context_length": 4096
+  },
+  "deployment_timestamp": "2025-09-20T11:18:53.879160",
+  "validation_score": 7.06
+}

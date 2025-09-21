@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-GRC Platform Service Startup Script
-Structured startup script following industry standards
+Service startup script for GRC Platform.
+This script starts all necessary services for development.
 """
 
 import os
@@ -11,237 +11,197 @@ import time
 import signal
 import threading
 from pathlib import Path
-from typing import List, Dict, Optional
-import logging
-
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
 
 class ServiceManager:
-    """Manages GRC Platform services with proper structure"""
+    """Manages GRC Platform services."""
     
-    def __init__(self, project_root: str = None):
-        self.project_root = Path(project_root) if project_root else Path(__file__).parent.parent.parent
-        self.services: Dict[str, subprocess.Popen] = {}
-        self.service_configs = {
-            'postgres': {
-                'command': ['docker', 'run', '-d', '--name', 'grc-postgres', 
-                           '-p', '5432:5432', '-e', 'POSTGRES_PASSWORD=password',
-                           'postgres:15-alpine'],
-                'health_check': 'docker ps --filter name=grc-postgres --filter status=running',
-                'port': 5432
-            },
-            'redis': {
-                'command': ['docker', 'run', '-d', '--name', 'grc-redis',
-                           '-p', '6379:6379', 'redis:7-alpine'],
-                'health_check': 'docker ps --filter name=grc-redis --filter status=running',
-                'port': 6379
-            },
-            'api-gateway': {
-                'command': ['python', 'main.py'],
-                'working_dir': self.project_root / 'src' / 'backend' / 'api-gateway',
-                'port': 8000,
-                'health_check': 'curl -f http://localhost:8000/health'
-            },
-            'ai-agents': {
-                'command': ['python', 'ai_agents_service.py'],
-                'working_dir': self.project_root / 'src' / 'backend' / 'services',
-                'port': 8005,
-                'health_check': 'curl -f http://localhost:8005/health'
-            },
-            'frontend': {
-                'command': ['npm', 'start'],
-                'working_dir': self.project_root / 'src' / 'frontend',
-                'port': 3000,
-                'health_check': 'curl -f http://localhost:3000'
-            }
-        }
+    def __init__(self):
+        self.processes = []
+        self.running = True
+        
+        # Set up signal handlers
+        signal.signal(signal.SIGINT, self.signal_handler)
+        signal.signal(signal.SIGTERM, self.signal_handler)
     
-    def start_service(self, service_name: str) -> bool:
-        """Start a specific service"""
-        if service_name not in self.service_configs:
-            logger.error(f"Unknown service: {service_name}")
-            return False
-        
-        config = self.service_configs[service_name]
-        logger.info(f"Starting {service_name}...")
-        
+    def signal_handler(self, signum, frame):
+        """Handle shutdown signals."""
+        print("\n🛑 Shutting down services...")
+        self.running = False
+        self.stop_all_services()
+        sys.exit(0)
+    
+    def start_service(self, name, command, cwd=None):
+        """Start a service."""
+        print(f"🚀 Starting {name}...")
         try:
-            # Set working directory if specified
-            cwd = config.get('working_dir')
-            if cwd and not cwd.exists():
-                logger.error(f"Working directory does not exist: {cwd}")
-                return False
-            
-            # Start the service
             process = subprocess.Popen(
-                config['command'],
+                command,
+                shell=True,
                 cwd=cwd,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True
             )
-            
-            self.services[service_name] = process
-            logger.info(f"✅ {service_name} started with PID {process.pid}")
-            
-            # Wait a moment for service to initialize
-            time.sleep(2)
-            
-            # Check if service is healthy
-            if self.check_service_health(service_name):
-                logger.info(f"✅ {service_name} is healthy")
-                return True
-            else:
-                logger.warning(f"⚠️ {service_name} started but health check failed")
-                return True  # Still consider it started
-                
+            self.processes.append((name, process))
+            print(f"✅ {name} started (PID: {process.pid})")
+            return True
         except Exception as e:
-            logger.error(f"Failed to start {service_name}: {e}")
+            print(f"❌ Failed to start {name}: {e}")
             return False
-    
-    def check_service_health(self, service_name: str) -> bool:
-        """Check if a service is healthy"""
-        config = self.service_configs.get(service_name)
-        if not config:
-            return False
-        
-        health_check = config.get('health_check')
-        if not health_check:
-            return True  # No health check defined
-        
-        try:
-            result = subprocess.run(
-                health_check.split(),
-                capture_output=True,
-                text=True,
-                timeout=10
-            )
-            return result.returncode == 0
-        except Exception as e:
-            logger.debug(f"Health check failed for {service_name}: {e}")
-            return False
-    
-    def start_all_services(self) -> Dict[str, bool]:
-        """Start all services in the correct order"""
-        logger.info("🚀 Starting GRC Platform Services...")
-        
-        # Define startup order
-        startup_order = ['postgres', 'redis', 'api-gateway', 'ai-agents', 'frontend']
-        results = {}
-        
-        for service in startup_order:
-            results[service] = self.start_service(service)
-            if not results[service]:
-                logger.error(f"Failed to start {service}, stopping startup process")
-                break
-            time.sleep(3)  # Wait between services
-        
-        return results
     
     def stop_all_services(self):
-        """Stop all running services"""
-        logger.info("🛑 Stopping all services...")
-        
-        for service_name, process in self.services.items():
+        """Stop all running services."""
+        for name, process in self.processes:
+            print(f"🛑 Stopping {name}...")
             try:
-                logger.info(f"Stopping {service_name}...")
                 process.terminate()
-                process.wait(timeout=10)
-                logger.info(f"✅ {service_name} stopped")
+                process.wait(timeout=5)
+                print(f"✅ {name} stopped")
             except subprocess.TimeoutExpired:
-                logger.warning(f"Force killing {service_name}...")
+                print(f"⚠️ {name} didn't stop gracefully, forcing...")
                 process.kill()
             except Exception as e:
-                logger.error(f"Error stopping {service_name}: {e}")
-        
-        self.services.clear()
+                print(f"❌ Error stopping {name}: {e}")
     
-    def get_service_status(self) -> Dict[str, Dict]:
-        """Get status of all services"""
-        status = {}
-        
-        for service_name, config in self.service_configs.items():
-            is_running = service_name in self.services
-            is_healthy = self.check_service_health(service_name) if is_running else False
-            
-            status[service_name] = {
-                'running': is_running,
-                'healthy': is_healthy,
-                'port': config.get('port'),
-                'pid': self.services[service_name].pid if is_running else None
-            }
-        
-        return status
+    def monitor_services(self):
+        """Monitor running services."""
+        while self.running:
+            for name, process in self.processes:
+                if process.poll() is not None:
+                    print(f"⚠️ {name} has stopped unexpectedly")
+                    # Optionally restart the service
+                    # self.restart_service(name, process)
+            time.sleep(5)
     
-    def print_status(self):
-        """Print current service status"""
-        status = self.get_service_status()
+    def start_backend_services(self):
+        """Start backend services."""
+        print("🔧 Starting backend services...")
         
-        print("\n" + "="*60)
-        print("📊 GRC PLATFORM SERVICE STATUS")
-        print("="*60)
+        # Start Policy Service
+        self.start_service(
+            "Policy Service",
+            "python -m uvicorn src.core.infrastructure.external_services.policy_service:app --host 0.0.0.0 --port 8001",
+            cwd="backend"
+        )
         
-        for service_name, info in status.items():
-            status_icon = "✅" if info['healthy'] else "🟡" if info['running'] else "❌"
-            health_text = "Healthy" if info['healthy'] else "Running" if info['running'] else "Stopped"
-            port_text = f" (Port {info['port']})" if info['port'] else ""
-            pid_text = f" [PID: {info['pid']}]" if info['pid'] else ""
+        # Start Risk Service
+        self.start_service(
+            "Risk Service", 
+            "python -m uvicorn src.core.infrastructure.external_services.risk_service:app --host 0.0.0.0 --port 8002",
+            cwd="backend"
+        )
+        
+        # Start Compliance Service
+        self.start_service(
+            "Compliance Service",
+            "python -m uvicorn src.core.infrastructure.external_services.compliance_service:app --host 0.0.0.0 --port 8003",
+            cwd="backend"
+        )
+        
+        # Start AI Agents Service
+        self.start_service(
+            "AI Agents Service",
+            "python -m uvicorn src.api.main:app --host 0.0.0.0 --port 8005",
+            cwd="backend/ai-agents"
+        )
+    
+    def start_frontend(self):
+        """Start frontend service."""
+        print("🎨 Starting frontend...")
+        self.start_service(
+            "Frontend",
+            "npm start",
+            cwd="frontend"
+        )
+    
+    def start_database_services(self):
+        """Start database services."""
+        print("🗄️ Starting database services...")
+        
+        # Check if Docker is available
+        try:
+            subprocess.run(["docker", "--version"], check=True, capture_output=True)
             
-            print(f"{status_icon} {service_name.upper()}: {health_text}{port_text}{pid_text}")
+            # Start PostgreSQL and Redis
+            self.start_service(
+                "Database Services",
+                "docker-compose up postgres redis",
+                cwd="."
+            )
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            print("⚠️ Docker not available. Please start PostgreSQL and Redis manually.")
+            print("   PostgreSQL: Ensure it's running on localhost:5432")
+            print("   Redis: Ensure it's running on localhost:6379")
+    
+    def check_dependencies(self):
+        """Check if all dependencies are available."""
+        print("🔍 Checking dependencies...")
         
-        print("="*60)
+        # Check Python
+        try:
+            subprocess.run(["python", "--version"], check=True, capture_output=True)
+            print("✅ Python is available")
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            print("❌ Python is not available")
+            return False
+        
+        # Check Node.js
+        try:
+            subprocess.run(["node", "--version"], check=True, capture_output=True)
+            print("✅ Node.js is available")
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            print("❌ Node.js is not available")
+            return False
+        
+        # Check if virtual environment exists
+        if not Path("venv").exists():
+            print("❌ Virtual environment not found. Run setup script first.")
+            return False
+        
+        print("✅ All dependencies are available")
+        return True
+    
+    def run(self):
+        """Run all services."""
+        print("🚀 GRC Platform Service Manager")
+        print("=" * 50)
+        
+        if not self.check_dependencies():
+            print("❌ Dependency check failed")
+            sys.exit(1)
+        
+        # Start database services
+        self.start_database_services()
+        
+        # Wait for database to be ready
+        print("⏳ Waiting for database services to be ready...")
+        time.sleep(10)
+        
+        # Start backend services
+        self.start_backend_services()
+        
+        # Start frontend
+        self.start_frontend()
+        
+        print("\n🎉 All services started!")
+        print("\n📋 Service URLs:")
+        print("   Frontend: http://localhost:3000")
+        print("   Policy Service: http://localhost:8001")
+        print("   Risk Service: http://localhost:8002")
+        print("   Compliance Service: http://localhost:8003")
+        print("   AI Agents Service: http://localhost:8005")
+        print("\nPress Ctrl+C to stop all services")
+        
+        # Monitor services
+        try:
+            self.monitor_services()
+        except KeyboardInterrupt:
+            self.stop_all_services()
 
 def main():
-    """Main function"""
-    import argparse
-    
-    parser = argparse.ArgumentParser(description='GRC Platform Service Manager')
-    parser.add_argument('action', choices=['start', 'stop', 'status', 'restart'],
-                       help='Action to perform')
-    parser.add_argument('--service', help='Specific service to manage')
-    parser.add_argument('--project-root', help='Project root directory')
-    
-    args = parser.parse_args()
-    
-    # Initialize service manager
-    manager = ServiceManager(args.project_root)
-    
-    try:
-        if args.action == 'start':
-            if args.service:
-                success = manager.start_service(args.service)
-                sys.exit(0 if success else 1)
-            else:
-                results = manager.start_all_services()
-                manager.print_status()
-                sys.exit(0 if all(results.values()) else 1)
-        
-        elif args.action == 'stop':
-            manager.stop_all_services()
-            print("✅ All services stopped")
-        
-        elif args.action == 'status':
-            manager.print_status()
-        
-        elif args.action == 'restart':
-            manager.stop_all_services()
-            time.sleep(2)
-            results = manager.start_all_services()
-            manager.print_status()
-            sys.exit(0 if all(results.values()) else 1)
-    
-    except KeyboardInterrupt:
-        print("\n🛑 Shutdown requested by user")
-        manager.stop_all_services()
-        sys.exit(0)
-    except Exception as e:
-        logger.error(f"Unexpected error: {e}")
-        sys.exit(1)
+    """Main function."""
+    manager = ServiceManager()
+    manager.run()
 
 if __name__ == "__main__":
     main()

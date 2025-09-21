@@ -43,7 +43,10 @@ const PolicyManagement = ({ apiCall, onSuccess, loading }) => {
   const [policies, setPolicies] = useState([]);
   const [openDialog, setOpenDialog] = useState(false);
   const [editingPolicy, setEditingPolicy] = useState(null);
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState({});
+
+  // Generate default form data
+  const getDefaultFormData = () => ({
     title: '',
     description: '',
     category: '',
@@ -53,45 +56,27 @@ const PolicyManagement = ({ apiCall, onSuccess, loading }) => {
     reviewDate: ''
   });
 
-  // Mock data for demonstration
+  // Load policies from API
   useEffect(() => {
-    const mockPolicies = [
-      {
-        id: 1,
-        title: 'Data Privacy Policy',
-        description: 'Comprehensive data privacy and protection guidelines',
-        category: 'Privacy',
-        status: 'approved',
-        version: '2.1',
-        effectiveDate: '2024-01-15',
-        reviewDate: '2024-07-15',
-        lastModified: '2024-01-10'
-      },
-      {
-        id: 2,
-        title: 'Information Security Policy',
-        description: 'IT security standards and procedures',
-        category: 'Security',
-        status: 'pending',
-        version: '1.5',
-        effectiveDate: '2024-02-01',
-        reviewDate: '2024-08-01',
-        lastModified: '2024-01-20'
-      },
-      {
-        id: 3,
-        title: 'Code of Conduct',
-        description: 'Employee behavior and ethical guidelines',
-        category: 'HR',
-        status: 'approved',
-        version: '3.0',
-        effectiveDate: '2023-12-01',
-        reviewDate: '2024-06-01',
-        lastModified: '2023-11-25'
-      }
-    ];
-    setPolicies(mockPolicies);
+    loadPolicies();
   }, []);
+
+  const loadPolicies = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      // TODO: Replace with actual API call
+      // const response = await policyService.getAllPolicies();
+      // setPolicies(response.data || []);
+      setPolicies([]); // Start with empty array
+    } catch (err) {
+      console.error('Error loading policies:', err);
+      setError('Failed to load policies. Please try again.');
+      setPolicies([]); // Fallback to empty array
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleOpenDialog = (policy = null) => {
     if (policy) {
@@ -99,15 +84,7 @@ const PolicyManagement = ({ apiCall, onSuccess, loading }) => {
       setFormData(policy);
     } else {
       setEditingPolicy(null);
-      setFormData({
-        title: '',
-        description: '',
-        category: '',
-        status: 'draft',
-        version: '1.0',
-        effectiveDate: '',
-        reviewDate: ''
-      });
+      setFormData(getDefaultFormData());
     }
     setOpenDialog(true);
   };

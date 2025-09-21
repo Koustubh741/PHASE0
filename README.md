@@ -2,6 +2,19 @@
 
 A comprehensive Governance, Risk, and Compliance (GRC) management platform built with modern microservices architecture and AI-powered agents.
 
+## 🏦 BFSI Model Stack
+
+**Enhanced with specialized BFSI (Banking, Financial Services, and Insurance) AI models:**
+
+- **FinBERT** - Financial sentiment analysis and domain-specific understanding
+- **DistilBERT** - Fast compliance document classification  
+- **BART** - Risk report summarization
+- **BERT NER** - Regulatory entity extraction
+- **DistilBERT Q&A** - Compliance question answering
+- **DialoGPT** - Interactive compliance conversations
+
+**Training Data:** 25,000 samples for optimal performance
+
 ## 🏗️ Architecture Overview
 
 This is a monorepo containing both frontend and backend services, organized following modern software architecture patterns:

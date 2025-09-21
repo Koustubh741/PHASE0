@@ -72,28 +72,11 @@ const Dashboard = ({ apiCall, onSuccess, loading }) => {
     fetchDashboardData();
   };
 
-  // Mock data for charts (replace with real data)
-  const riskTrendData = [
-    { month: 'Jan', risks: 12, resolved: 8 },
-    { month: 'Feb', risks: 15, resolved: 10 },
-    { month: 'Mar', risks: 18, resolved: 12 },
-    { month: 'Apr', risks: 14, resolved: 11 },
-    { month: 'May', risks: 16, resolved: 13 },
-    { month: 'Jun', risks: 13, resolved: 9 },
-  ];
+  // Chart data (will be populated from API)
+  const riskTrendData = [];
+  const complianceData = [];
 
-  const complianceData = [
-    { name: 'Compliant', value: 75, color: '#4caf50' },
-    { name: 'Non-Compliant', value: 15, color: '#f44336' },
-    { name: 'In Progress', value: 10, color: '#ff9800' },
-  ];
-
-  const policyStatusData = [
-    { name: 'Active', value: 45, color: '#2196f3' },
-    { name: 'Under Review', value: 12, color: '#ff9800' },
-    { name: 'Draft', value: 8, color: '#9e9e9e' },
-    { name: 'Archived', value: 5, color: '#607d8b' },
-  ];
+  const policyStatusData = [];
 
   if (loading && !dashboardData) {
     return (

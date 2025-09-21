@@ -62,10 +62,12 @@ class HuggingFaceClient:
         self,
         message: str,
         model_name: str = None,
+        model_id: str = None,
         max_length: int = 100,
         temperature: float = 0.7,
         top_p: float = 0.9,
-        conversation_history: List[Dict[str, str]] = None
+        conversation_history: List[Dict[str, str]] = None,
+        auto_select: bool = True
     ) -> Dict[str, Any]:
         """Generate chat response"""
         try:
@@ -74,10 +76,14 @@ class HuggingFaceClient:
                 "max_length": max_length,
                 "temperature": temperature,
                 "top_p": top_p,
-                "conversation_history": conversation_history or []
+                "conversation_history": conversation_history or [],
+                "auto_model_selection": auto_select
             }
             
-            if model_name:
+            # Support both original and enhanced API
+            if model_id:
+                payload["model_id"] = model_id
+            elif model_name:
                 payload["model_name"] = model_name
             
             async with self.session.post(
@@ -96,12 +102,21 @@ class HuggingFaceClient:
     async def generate_embeddings(
         self,
         text: str,
-        model_name: str = None
+        model_name: str = None,
+        model_id: str = None,
+        auto_select: bool = True
     ) -> Dict[str, Any]:
         """Generate embeddings for text"""
         try:
-            payload = {"text": text}
-            if model_name:
+            payload = {
+                "text": text,
+                "auto_model_selection": auto_select
+            }
+            
+            # Support both original and enhanced API
+            if model_id:
+                payload["model_id"] = model_id
+            elif model_name:
                 payload["model_name"] = model_name
             
             async with self.session.post(
@@ -142,6 +157,58 @@ class HuggingFaceClient:
         except Exception as e:
             logger.error(f"Model unloading failed: {e}")
             raise
+    
+    async def get_model_recommendations(self, task_description: str, preferred_speed: str = None) -> Dict[str, Any]:
+        """Get model recommendations for a task"""
+        try:
+            payload = {"task_description": task_description}
+            if preferred_speed:
+                payload["preferred_speed"] = preferred_speed
+            
+            async with self.session.post(
+                f"{self.base_url}/models/recommend",
+                json=payload
+            ) as response:
+                if response.status == 200:
+                    return await response.json()
+                else:
+                    error_text = await response.text()
+                    raise Exception(f"Recommendations request failed: {response.status} - {error_text}")
+        except Exception as e:
+            logger.error(f"Recommendations request failed: {e}")
+            raise
+    
+    async def get_system_status(self) -> Dict[str, Any]:
+        """Get system status and resource usage"""
+        try:
+            async with self.session.get(f"{self.base_url}/system/status") as response:
+                if response.status == 200:
+                    return await response.json()
+                else:
+                    error_text = await response.text()
+                    raise Exception(f"System status request failed: {response.status} - {error_text}")
+        except Exception as e:
+            logger.error(f"System status request failed: {e}")
+            raise
+    
+    async def get_available_models(self, model_type: str = None, category: str = None) -> Dict[str, Any]:
+        """Get available models with filtering options"""
+        try:
+            params = {}
+            if model_type:
+                params['model_type'] = model_type
+            if category:
+                params['category'] = category
+            
+            async with self.session.get(f"{self.base_url}/models", params=params) as response:
+                if response.status == 200:
+                    return await response.json()
+                else:
+                    error_text = await response.text()
+                    raise Exception(f"Available models request failed: {response.status} - {error_text}")
+        except Exception as e:
+            logger.error(f"Available models request failed: {e}")
+            raise
 
 class HuggingFaceAgent:
     """Enhanced agent that uses Hugging Face transformers for local LLM capabilities"""
@@ -166,7 +233,9 @@ class HuggingFaceAgent:
         self,
         message: str,
         context: Dict[str, Any] = None,
-        use_conversation_history: bool = True
+        use_conversation_history: bool = True,
+        auto_select_model: bool = True,
+        model_id: str = None
     ) -> Dict[str, Any]:
         """Process a message using Hugging Face transformers"""
         try:
@@ -184,9 +253,11 @@ class HuggingFaceAgent:
                 response = await client.chat(
                     message=context_str,
                     model_name=self.model_name,
+                    model_id=model_id,
                     max_length=150,
                     temperature=0.7,
-                    conversation_history=conversation_history
+                    conversation_history=conversation_history,
+                    auto_select=auto_select_model
                 )
                 
                 # Update conversation history

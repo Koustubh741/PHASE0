@@ -38,66 +38,45 @@ import {
 const Analytics = ({ apiCall, onSuccess, loading }) => {
   const [timeRange, setTimeRange] = useState('30d');
   const [selectedMetric, setSelectedMetric] = useState('all');
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState(null);
 
-  // Mock data for demonstration
-  const complianceTrendData = [
-    { month: 'Jan', compliance: 85, risks: 12, policies: 45 },
-    { month: 'Feb', compliance: 88, risks: 10, policies: 48 },
-    { month: 'Mar', compliance: 92, risks: 8, policies: 52 },
-    { month: 'Apr', compliance: 89, risks: 9, policies: 50 },
-    { month: 'May', compliance: 94, risks: 6, policies: 55 },
-    { month: 'Jun', compliance: 96, risks: 4, policies: 58 }
-  ];
+  // Chart data state (will be populated from API)
+  const [complianceTrendData, setComplianceTrendData] = useState([]);
+  const [riskDistributionData, setRiskDistributionData] = useState([]);
+  const [policyStatusData, setPolicyStatusData] = useState([]);
+  const [workflowProgressData, setWorkflowProgressData] = useState([]);
+  const [kpiData, setKpiData] = useState([]);
 
-  const riskDistributionData = [
-    { name: 'High Risk', value: 15, color: '#f44336' },
-    { name: 'Medium Risk', value: 35, color: '#ff9800' },
-    { name: 'Low Risk', value: 50, color: '#4caf50' }
-  ];
+  // Load analytics data from API
+  useEffect(() => {
+    loadAnalyticsData();
+  }, [timeRange, selectedMetric]);
 
-  const policyStatusData = [
-    { name: 'Approved', value: 65, color: '#4caf50' },
-    { name: 'Pending', value: 25, color: '#ff9800' },
-    { name: 'Draft', value: 10, color: '#2196f3' }
-  ];
-
-  const workflowProgressData = [
-    { name: 'Policy Approval', progress: 75, completed: 15, total: 20 },
-    { name: 'Risk Assessment', progress: 60, completed: 12, total: 20 },
-    { name: 'Compliance Review', progress: 90, completed: 18, total: 20 },
-    { name: 'Incident Response', progress: 45, completed: 9, total: 20 }
-  ];
-
-  const kpiData = [
-    {
-      title: 'Overall Compliance Score',
-      value: '94%',
-      change: '+2.5%',
-      trend: 'up',
-      icon: <Assessment color="primary" />
-    },
-    {
-      title: 'Active Risks',
-      value: '23',
-      change: '-15%',
-      trend: 'down',
-      icon: <TrendingDown color="error" />
-    },
-    {
-      title: 'Policies Updated',
-      value: '58',
-      change: '+8%',
-      trend: 'up',
-      icon: <TrendingUp color="success" />
-    },
-    {
-      title: 'Workflows Completed',
-      value: '42',
-      change: '+12%',
-      trend: 'up',
-      icon: <TrendingUp color="info" />
+  const loadAnalyticsData = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      // TODO: Replace with actual API calls
+      // const complianceData = await analyticsService.getComplianceTrend(timeRange);
+      // const riskData = await analyticsService.getRiskDistribution(timeRange);
+      // const policyData = await analyticsService.getPolicyStatus(timeRange);
+      // const workflowData = await analyticsService.getWorkflowProgress(timeRange);
+      // const kpiData = await analyticsService.getKPIs(timeRange);
+      
+      // For now, set empty arrays until API is implemented
+      setComplianceTrendData([]);
+      setRiskDistributionData([]);
+      setPolicyStatusData([]);
+      setWorkflowProgressData([]);
+      setKpiData([]);
+    } catch (err) {
+      console.error('Error loading analytics data:', err);
+      setError('Failed to load analytics data. Please try again.');
+    } finally {
+      setIsLoading(false);
     }
-  ];
+  };
 
   return (
     <Box>

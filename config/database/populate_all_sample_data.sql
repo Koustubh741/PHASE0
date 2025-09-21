@@ -1,32 +1,25 @@
--- Comprehensive Sample Data Population Script for GRC Platform
--- This script populates the database with realistic data across all industries
--- Run this script to populate the database with sample data for dashboard display
+-- Dynamic Sample Data Population Script for GRC Platform
+-- This script now uses dynamic data generation instead of hardcoded values
+-- Run this script to populate the database with fresh, realistic data
 
 -- =============================================
--- STEP 1: Run Schema and Basic Data
+-- STEP 1: Generate Dynamic Sample Data
 -- =============================================
--- First run: database/schema.sql (creates tables and basic data)
--- This includes organizations, compliance frameworks, risk categories, policy categories
+-- First, generate fresh sample data using the Python script:
+-- python scripts/generate_sample_data.py
+-- 
+-- This creates config/database/generated_sample_data.sql with dynamic data
 
 -- =============================================
--- STEP 2: Populate Users and Organizations
+-- STEP 2: Run Schema and Basic Data
 -- =============================================
--- Run: database/users_and_organizations_data.sql
--- This creates 7 organizations and 43 users across all industries
+-- Run: database/schema.sql (creates tables and basic data)
 
 -- =============================================
--- STEP 3: Populate Industry-Specific Data
+-- STEP 3: Populate Dynamic Sample Data
 -- =============================================
--- Run each industry data file:
-
--- BFSI Industry Data
-\i database/bfsi_sample_data.sql
-
--- Healthcare Industry Data  
-\i database/healthcare_sample_data.sql
-
--- Manufacturing Industry Data
-\i database/manufacturing_sample_data.sql
+-- Run the generated sample data:
+-- \i database/generated_sample_data.sql
 
 -- Telecom Industry Data
 \i database/telecom_sample_data.sql

@@ -5,23 +5,37 @@ FastAPI microservice for GRC Workflow Management
 
 from fastapi import FastAPI, HTTPException, Depends, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from sqlalchemy import create_engine, Column, String, Text, DateTime, Boolean, Integer, ForeignKey, JSON
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker, Session, relationship
+from sqlalchemy import create_engine, Column, String, Text, DateTime, Boolean, Integer, ForeignKey, JSON, select, func
+from sqlalchemy.orm import DeclarativeBase, sessionmaker, Session, relationship, Mapped, mapped_column
 from pydantic import BaseModel, Field, validator
 from typing import List, Optional, Dict, Any
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 import uuid
 import logging
+import os
 from enum import Enum
+from ..config.database_config import get_database_url, is_secure_config
 
 logger = logging.getLogger(__name__)
 
-# Database setup
-DATABASE_URL = "postgresql://grc_user:grc_password@localhost:5432/grc_platform"
-engine = create_engine(DATABASE_URL)
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-Base = declarative_base()
+# Database setup with centralized configuration
+try:
+    DATABASE_URL = get_database_url()
+    logger.info("Database configuration loaded successfully")
+    
+    # Log security status
+    if is_secure_config():
+        logger.info("Using secure database configuration from environment variables")
+    else:
+        logger.warning("Using development database configuration. Consider setting DATABASE_URL for production.")
+        
+except Exception as e:
+    logger.error(f"Database configuration error: {e}")
+    engine = create_engine(DATABASE_URL)
+    SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+class Base(DeclarativeBase):
+    pass
 
 # Security
 security = HTTPBearer()
@@ -53,77 +67,85 @@ class WorkflowType(str, Enum):
 class Organization(Base):
     __tablename__ = "organizations"
     
-    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
-    name = Column(String(255), nullable=False)
-    industry = Column(String(100))
-    size = Column(String(50))
-    location = Column(String(255))
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    industry: Mapped[Optional[str]] = mapped_column(String(100))
+    size: Mapped[Optional[str]] = mapped_column(String(50))
+    location: Mapped[Optional[str]] = mapped_column(String(255))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    users: Mapped[List["User"]] = relationship("User", back_populates="organization")
+    workflow_templates: Mapped[List["WorkflowTemplate"]] = relationship("WorkflowTemplate", back_populates="organization")
+    workflows: Mapped[List["Workflow"]] = relationship("Workflow", back_populates="organization")
 
 class User(Base):
     __tablename__ = "users"
     
-    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
-    email = Column(String(255), unique=True, nullable=False)
-    username = Column(String(100), unique=True, nullable=False)
-    first_name = Column(String(100), nullable=False)
-    last_name = Column(String(100), nullable=False)
-    organization_id = Column(String, ForeignKey("organizations.id"))
-    role = Column(String(50), nullable=False, default="USER")
-    is_active = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
+    username: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
+    first_name: Mapped[str] = mapped_column(String(100), nullable=False)
+    last_name: Mapped[str] = mapped_column(String(100), nullable=False)
+    organization_id: Mapped[Optional[str]] = mapped_column(String, ForeignKey("organizations.id"))
+    role: Mapped[str] = mapped_column(String(50), nullable=False, default="USER")
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     
-    organization = relationship("Organization", backref="users")
+    organization: Mapped[Optional["Organization"]] = relationship("Organization", back_populates="users")
+    initiated_workflows: Mapped[List["Workflow"]] = relationship("Workflow", foreign_keys="Workflow.initiated_by", back_populates="initiator")
+    workflow_assignments: Mapped[List["WorkflowInstance"]] = relationship("WorkflowInstance", back_populates="assignee")
 
 class WorkflowTemplate(Base):
     __tablename__ = "workflow_templates"
     
-    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
-    name = Column(String(255), nullable=False)
-    description = Column(Text)
-    workflow_type = Column(String(100), nullable=False)
-    steps = Column(JSON, nullable=False)  # JSON array of step definitions
-    organization_id = Column(String, ForeignKey("organizations.id"))
-    is_active = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    description: Mapped[Optional[str]] = mapped_column(Text)
+    workflow_type: Mapped[str] = mapped_column(String(100), nullable=False)
+    steps: Mapped[Dict[str, Any]] = mapped_column(JSON, nullable=False)  # JSON array of step definitions
+    organization_id: Mapped[Optional[str]] = mapped_column(String, ForeignKey("organizations.id"))
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     
-    organization = relationship("Organization", backref="workflow_templates")
+    organization: Mapped[Optional["Organization"]] = relationship("Organization", back_populates="workflow_templates")
+    workflows: Mapped[List["Workflow"]] = relationship("Workflow", back_populates="template")
 
 class Workflow(Base):
     __tablename__ = "workflows"
     
-    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
-    template_id = Column(String, ForeignKey("workflow_templates.id"))
-    name = Column(String(255), nullable=False)
-    status = Column(String(50), default=WorkflowStatus.ACTIVE)
-    current_step = Column(Integer, default=1)
-    context = Column(JSON)  # JSON object for workflow context
-    organization_id = Column(String, ForeignKey("organizations.id"))
-    initiated_by = Column(String, ForeignKey("users.id"))
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    template_id: Mapped[Optional[str]] = mapped_column(String, ForeignKey("workflow_templates.id"))
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    status: Mapped[str] = mapped_column(String(50), default=WorkflowStatus.ACTIVE)
+    current_step: Mapped[int] = mapped_column(Integer, default=1)
+    context: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSON)  # JSON object for workflow context
+    organization_id: Mapped[Optional[str]] = mapped_column(String, ForeignKey("organizations.id"))
+    initiated_by: Mapped[Optional[str]] = mapped_column(String, ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
-    template = relationship("WorkflowTemplate", backref="workflows")
-    organization = relationship("Organization", backref="workflows")
-    initiator = relationship("User", backref="initiated_workflows")
+    template: Mapped[Optional["WorkflowTemplate"]] = relationship("WorkflowTemplate", back_populates="workflows")
+    organization: Mapped[Optional["Organization"]] = relationship("Organization", back_populates="workflows")
+    initiator: Mapped[Optional["User"]] = relationship("User", foreign_keys=[initiated_by], back_populates="initiated_workflows")
+    instances: Mapped[List["WorkflowInstance"]] = relationship("WorkflowInstance", back_populates="workflow")
 
 class WorkflowInstance(Base):
     __tablename__ = "workflow_instances"
     
-    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
-    workflow_id = Column(String, ForeignKey("workflows.id"))
-    step_number = Column(Integer, nullable=False)
-    step_name = Column(String(255), nullable=False)
-    status = Column(String(50), default=StepStatus.PENDING)
-    assigned_to = Column(String, ForeignKey("users.id"))
-    due_date = Column(DateTime)
-    completed_at = Column(DateTime)
-    notes = Column(Text)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    workflow_id: Mapped[Optional[str]] = mapped_column(String, ForeignKey("workflows.id"))
+    step_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    step_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    status: Mapped[str] = mapped_column(String(50), default=StepStatus.PENDING)
+    assigned_to: Mapped[Optional[str]] = mapped_column(String, ForeignKey("users.id"))
+    due_date: Mapped[Optional[datetime]] = mapped_column(DateTime)
+    completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
+    notes: Mapped[Optional[str]] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     
-    workflow = relationship("Workflow", backref="instances")
-    assignee = relationship("User", backref="workflow_assignments")
+    workflow: Mapped[Optional["Workflow"]] = relationship("Workflow", back_populates="instances")
+    assignee: Mapped[Optional["User"]] = relationship("User", back_populates="workflow_assignments")
 
 # Pydantic Models
 class WorkflowStep(BaseModel):
@@ -236,32 +258,36 @@ def create_workflow_instances(workflow: Workflow, template: WorkflowTemplate, db
 
 def get_next_workflow_step(workflow: Workflow, db: Session) -> Optional[WorkflowInstance]:
     """Get the next pending workflow step"""
-    return db.query(WorkflowInstance).filter(
+    stmt = select(WorkflowInstance).where(
         WorkflowInstance.workflow_id == workflow.id,
         WorkflowInstance.status == StepStatus.PENDING
-    ).order_by(WorkflowInstance.step_number).first()
+    ).order_by(WorkflowInstance.step_number)
+    return db.scalar(stmt)
 
 def complete_workflow_step(workflow_id: str, step_number: int, db: Session) -> bool:
     """Complete a workflow step and move to next"""
     # Mark current step as completed
-    current_step = db.query(WorkflowInstance).filter(
+    stmt = select(WorkflowInstance).where(
         WorkflowInstance.workflow_id == workflow_id,
         WorkflowInstance.step_number == step_number
-    ).first()
+    )
+    current_step = db.scalar(stmt)
     
     if current_step:
         current_step.status = StepStatus.COMPLETED
         current_step.completed_at = datetime.utcnow()
     
     # Check if workflow is complete
-    remaining_steps = db.query(WorkflowInstance).filter(
+    remaining_steps_stmt = select(func.count(WorkflowInstance.id)).where(
         WorkflowInstance.workflow_id == workflow_id,
         WorkflowInstance.status == StepStatus.PENDING
-    ).count()
+    )
+    remaining_steps = db.scalar(remaining_steps_stmt)
     
     if remaining_steps == 0:
         # Workflow is complete
-        workflow = db.query(Workflow).filter(Workflow.id == workflow_id).first()
+        workflow_stmt = select(Workflow).where(Workflow.id == workflow_id)
+        workflow = db.scalar(workflow_stmt)
         if workflow:
             workflow.status = WorkflowStatus.COMPLETED
             workflow.updated_at = datetime.utcnow()
@@ -315,17 +341,17 @@ async def get_workflow_templates(
 ):
     """Get workflow templates"""
     try:
-        query = db.query(WorkflowTemplate).filter(
+        stmt = select(WorkflowTemplate).where(
             WorkflowTemplate.organization_id == current_user["organization_id"]
         )
         
         if is_active:
-            query = query.filter(WorkflowTemplate.is_active == True)
+            stmt = stmt.where(WorkflowTemplate.is_active == True)
         
         if workflow_type:
-            query = query.filter(WorkflowTemplate.workflow_type == workflow_type)
+            stmt = stmt.where(WorkflowTemplate.workflow_type == workflow_type)
         
-        templates = query.all()
+        templates = db.scalars(stmt).all()
         return templates
         
     except Exception as e:
@@ -340,10 +366,11 @@ async def get_workflow_template(
 ):
     """Get a specific workflow template"""
     try:
-        template = db.query(WorkflowTemplate).filter(
+        template_stmt = select(WorkflowTemplate).where(
             WorkflowTemplate.id == template_id,
             WorkflowTemplate.organization_id == current_user["organization_id"]
-        ).first()
+        )
+        template = db.scalar(template_stmt)
         
         if not template:
             raise HTTPException(status_code=404, detail="Workflow template not found")
@@ -365,10 +392,11 @@ async def create_workflow(
     """Create a new workflow instance"""
     try:
         # Verify template exists
-        template = db.query(WorkflowTemplate).filter(
+        template_stmt = select(WorkflowTemplate).where(
             WorkflowTemplate.id == workflow_data.template_id,
             WorkflowTemplate.organization_id == current_user["organization_id"]
-        ).first()
+        )
+        template = db.scalar(template_stmt)
         
         if not template:
             raise HTTPException(status_code=404, detail="Workflow template not found")
@@ -410,19 +438,19 @@ async def get_workflows(
 ):
     """Get workflows with filtering"""
     try:
-        query = db.query(Workflow).filter(
+        stmt = select(Workflow).where(
             Workflow.organization_id == current_user["organization_id"]
         )
         
         if status:
-            query = query.filter(Workflow.status == status)
+            stmt = stmt.where(Workflow.status == status)
         
         if workflow_type:
-            query = query.join(WorkflowTemplate).filter(
+            stmt = stmt.join(WorkflowTemplate).where(
                 WorkflowTemplate.workflow_type == workflow_type
             )
         
-        workflows = query.offset(offset).limit(limit).all()
+        workflows = db.scalars(stmt.offset(offset).limit(limit)).all()
         return workflows
         
     except Exception as e:
@@ -437,10 +465,11 @@ async def get_workflow(
 ):
     """Get a specific workflow by ID"""
     try:
-        workflow = db.query(Workflow).filter(
+        workflow_stmt = select(Workflow).where(
             Workflow.id == workflow_id,
             Workflow.organization_id == current_user["organization_id"]
-        ).first()
+        )
+        workflow = db.scalar(workflow_stmt)
         
         if not workflow:
             raise HTTPException(status_code=404, detail="Workflow not found")
@@ -462,17 +491,19 @@ async def get_workflow_instances(
     """Get workflow instances for a specific workflow"""
     try:
         # Verify workflow exists and belongs to organization
-        workflow = db.query(Workflow).filter(
+        workflow_stmt = select(Workflow).where(
             Workflow.id == workflow_id,
             Workflow.organization_id == current_user["organization_id"]
-        ).first()
+        )
+        workflow = db.scalar(workflow_stmt)
         
         if not workflow:
             raise HTTPException(status_code=404, detail="Workflow not found")
         
-        instances = db.query(WorkflowInstance).filter(
+        instances_stmt = select(WorkflowInstance).where(
             WorkflowInstance.workflow_id == workflow_id
-        ).order_by(WorkflowInstance.step_number).all()
+        ).order_by(WorkflowInstance.step_number)
+        instances = db.scalars(instances_stmt).all()
         
         return instances
         
@@ -493,19 +524,21 @@ async def perform_workflow_action(
     """Perform an action on a workflow instance"""
     try:
         # Verify workflow exists and belongs to organization
-        workflow = db.query(Workflow).filter(
+        workflow_stmt = select(Workflow).where(
             Workflow.id == workflow_id,
             Workflow.organization_id == current_user["organization_id"]
-        ).first()
+        )
+        workflow = db.scalar(workflow_stmt)
         
         if not workflow:
             raise HTTPException(status_code=404, detail="Workflow not found")
         
         # Get workflow instance
-        instance = db.query(WorkflowInstance).filter(
+        instance_stmt = select(WorkflowInstance).where(
             WorkflowInstance.id == instance_id,
             WorkflowInstance.workflow_id == workflow_id
-        ).first()
+        )
+        instance = db.scalar(instance_stmt)
         
         if not instance:
             raise HTTPException(status_code=404, detail="Workflow instance not found")
@@ -518,7 +551,7 @@ async def perform_workflow_action(
             
             # Update workflow context if provided
             if action_data.context_updates:
-                workflow.context = {**(workflow.context or {}), **action_data.context_updates}
+                workflow.context = (workflow.context or {}) | action_data.context_updates
             
             # Check if workflow is complete
             is_complete = complete_workflow_step(workflow_id, instance.step_number, db)
@@ -561,14 +594,14 @@ async def get_my_workflow_assignments(
 ):
     """Get workflow instances assigned to current user"""
     try:
-        query = db.query(WorkflowInstance).filter(
+        stmt = select(WorkflowInstance).where(
             WorkflowInstance.assigned_to == current_user["id"]
         )
         
         if status:
-            query = query.filter(WorkflowInstance.status == status)
+            stmt = stmt.where(WorkflowInstance.status == status)
         
-        instances = query.order_by(WorkflowInstance.due_date).all()
+        instances = db.scalars(stmt.order_by(WorkflowInstance.due_date)).all()
         return instances
         
     except Exception as e:
@@ -580,50 +613,44 @@ async def get_workflow_stats(
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Get workflow statistics with mock data fallback"""
+    """Get workflow statistics"""
     try:
-        total_workflows = db.query(Workflow).filter(
+        total_workflows_stmt = select(func.count(Workflow.id)).where(
             Workflow.organization_id == current_user["organization_id"]
-        ).count()
+        )
+        total_workflows = db.scalar(total_workflows_stmt)
         
-        # If no data exists, return mock data
+        # Return empty stats if no data exists
         if total_workflows == 0:
             return {
-                "total_workflows": 32,
-                "workflows_by_status": {
-                    "Active": 25,
-                    "Completed": 5,
-                    "Pending": 2
-                },
-                "workflows_by_priority": {
-                    "High": 12,
-                    "Medium": 15,
-                    "Low": 5
-                },
-                "my_pending_assignments": 8,
-                "overdue_assignments": 3,
-                "completed_this_month": 15,
-                "workflow_efficiency": 78.5,
-                "mock_data": True
+                "total_workflows": 0,
+                "workflows_by_status": {},
+                "my_pending_assignments": 0,
+                "overdue_assignments": 0,
+                "message": "No workflow data available"
             }
         
-        workflows_by_status = db.query(
+        workflows_by_status_stmt = select(
             Workflow.status,
-            db.func.count(Workflow.id)
-        ).filter(
+            func.count(Workflow.id)
+        ).where(
             Workflow.organization_id == current_user["organization_id"]
-        ).group_by(Workflow.status).all()
+        ).group_by(Workflow.status)
+        workflows_by_status_result = db.execute(workflows_by_status_stmt)
+        workflows_by_status = workflows_by_status_result.all()
         
-        my_pending_assignments = db.query(WorkflowInstance).filter(
+        my_pending_assignments_stmt = select(func.count(WorkflowInstance.id)).where(
             WorkflowInstance.assigned_to == current_user["id"],
             WorkflowInstance.status == StepStatus.PENDING
-        ).count()
+        )
+        my_pending_assignments = db.scalar(my_pending_assignments_stmt)
         
-        overdue_assignments = db.query(WorkflowInstance).filter(
+        overdue_assignments_stmt = select(func.count(WorkflowInstance.id)).where(
             WorkflowInstance.assigned_to == current_user["id"],
             WorkflowInstance.status == StepStatus.PENDING,
             WorkflowInstance.due_date < datetime.utcnow()
-        ).count()
+        )
+        overdue_assignments = db.scalar(overdue_assignments_stmt)
         
         return {
             "total_workflows": total_workflows,
@@ -638,5 +665,4 @@ async def get_workflow_stats(
 
 if __name__ == "__main__":
     import uvicorn
-    from datetime import timedelta
     uvicorn.run(app, host="0.0.0.0", port=8004)

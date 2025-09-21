@@ -6,6 +6,7 @@ Main entry point for industry-specific GRC operations across BFSI, Telecom, Manu
 import asyncio
 import logging
 import os
+import uuid
 from typing import Dict, Any, List
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -18,7 +19,7 @@ from pathlib import Path
 parent_dir = Path(__file__).parent.parent
 sys.path.insert(0, str(parent_dir))
 
-from orchestration.main_orchestrator import GRCPlatformOrchestrator
+from orchestration.legacy_main_orchestrator import GRCPlatformOrchestrator
 from shared_components.industry_agent import IndustryType, GRCOperationType
 from shared_components.archer_reporting_engine import ReportType, ReportFormat
 from shared_components.mcp_broker import MCPBroker
@@ -84,13 +85,28 @@ async def startup_event():
         # await mcp_broker.register_agent("document_001", document_agent)
         # await mcp_broker.register_agent("communication_001", communication_agent)
         
-        # Only BFSI agent available
-        agents = {
-            # "compliance": compliance_agent,
-            # "risk": risk_agent,
-            # "document": document_agent,
-            # "communication": communication_agent
-        }
+        # Initialize MCP-enabled BFSI agents
+        from bfsi_agent.bfsi_mcp_subagents import (
+            initialize_all_bfsi_mcp_agents, 
+            register_agents_with_mcp_broker,
+            BFSIMCPAgentFactory
+        )
+        
+        # Create and initialize all BFSI MCP agents
+        bfsi_agents = await initialize_all_bfsi_mcp_agents()
+        
+        # Register BFSI agents with MCP broker
+        registration_results = await register_agents_with_mcp_broker(bfsi_agents, mcp_broker)
+        
+        # Log registration results
+        for agent_id, success in registration_results.items():
+            if success:
+                logger.info(f"✅ BFSI Agent {agent_id} registered successfully")
+            else:
+                logger.error(f"❌ Failed to register BFSI Agent {agent_id}")
+        
+        # Store agents for API access
+        agents = bfsi_agents
         
         # Start listening for messages
         asyncio.create_task(mcp_broker.start_listening())
@@ -190,86 +206,210 @@ async def analyze_document(request: Dict[str, Any]):
 
 @app.get("/agents/status")
 async def get_agents_status():
-    """Get status of all agents with mock data fallback"""
+    """Get status of all agents including MCP-enabled BFSI agents"""
     try:
         # Try to get real agent status
         if agents:
+            agent_statuses = {}
+            for agent_id, agent in agents.items():
+                if hasattr(agent, 'get_health_status'):
+                    # MCP-enabled BFSI agents
+                    agent_statuses[agent_id] = agent.get_health_status()
+                else:
+                    # Legacy agents or fallback
+                    agent_statuses[agent_id] = {
+                        "agent_id": agent_id,
+                        "name": getattr(agent, 'name', 'Unknown'),
+                        "status": getattr(agent, 'status', 'unknown'),
+                        "last_activity": getattr(agent, 'last_activity', None),
+                        "agent_type": getattr(agent, 'agent_type', 'General'),
+                        "performance_metrics": getattr(agent, 'performance_metrics', {})
+                    }
+            
+            # Get MCP broker status
+            mcp_status = {
+                "status": "active" if mcp_broker else "inactive",
+                "registered_agents": mcp_broker.get_registered_agents() if mcp_broker else [],
+                "is_listening": mcp_broker.is_running if mcp_broker else False
+            }
+            
             return {
                 "platform_status": "operational",
                 "total_documents": 1250,
-                "agents": {
-                    name: {
-                        "status": agent.status,
-                        "last_activity": agent.last_activity,
-                        "agent_id": agent.agent_id,
-                        "type": getattr(agent, 'agent_type', 'General'),
-                        "performance_score": getattr(agent, 'performance_score', 0.9)
-                    }
-                    for name, agent in agents.items()
-                }
+                "agents": agent_statuses,
+                "mcp_broker": mcp_status,
+                "bfsi_mcp_enabled": True,
+                "timestamp": datetime.now().isoformat()
             }
         else:
-            # Return mock data if no agents are available
+            # Return empty data if no agents are available
             return {
                 "platform_status": "operational",
-                "total_documents": 1250,
-                "agents": {
-                    "bfsi_compliance_agent": {
-                        "status": "active",
-                        "last_activity": "2024-09-16T10:30:00Z",
-                        "agent_id": "AGENT-BFSI-001",
-                        "type": "Compliance",
-                        "performance_score": 0.94
-                    },
-                    "healthcare_hipaa_agent": {
-                        "status": "active",
-                        "last_activity": "2024-09-16T10:25:00Z",
-                        "agent_id": "AGENT-HC-001",
-                        "type": "Compliance",
-                        "performance_score": 0.93
-                    },
-                    "manufacturing_quality_agent": {
-                        "status": "active",
-                        "last_activity": "2024-09-16T10:20:00Z",
-                        "agent_id": "AGENT-MFG-001",
-                        "type": "Quality Control",
-                        "performance_score": 0.92
-                    },
-                    "telecom_network_agent": {
-                        "status": "active",
-                        "last_activity": "2024-09-16T10:15:00Z",
-                        "agent_id": "AGENT-TEL-001",
-                        "type": "Network Monitoring",
-                        "performance_score": 0.94
-                    },
-                    "risk_assessment_agent": {
-                        "status": "active",
-                        "last_activity": "2024-09-16T10:10:00Z",
-                        "agent_id": "AGENT-RISK-001",
-                        "type": "Risk Assessment",
-                        "performance_score": 0.91
-                    }
-                },
-                "mock_data": True
+                "total_documents": 0,
+                "agents": {},
+                "mcp_broker": {"status": "inactive"},
+                "bfsi_mcp_enabled": False
             }
     except Exception as e:
         logger.error(f"Error getting agents status: {e}")
-        # Return basic mock data on error
+        # Return error response
         return {
-            "platform_status": "operational",
-            "total_documents": 1250,
-            "agents": {
-                "general_compliance_agent": {
-                    "status": "active",
-                    "last_activity": "2024-09-16T10:00:00Z",
-                    "agent_id": "AGENT-GEN-001",
-                    "type": "General",
-                    "performance_score": 0.9
-                }
-            },
-            "mock_data": True,
+            "platform_status": "error",
+            "total_documents": 0,
+            "agents": {},
+            "mcp_broker": {"status": "error"},
             "error": str(e)
         }
+
+# MCP-Specific Endpoints
+
+@app.get("/mcp/status")
+async def get_mcp_status():
+    """Get MCP broker and agent communication status"""
+    try:
+        if not mcp_broker:
+            raise HTTPException(status_code=500, detail="MCP broker not available")
+        
+        return {
+            "mcp_broker_status": "active",
+            "registered_agents": mcp_broker.get_registered_agents(),
+            "is_listening": mcp_broker.is_running,
+            "total_agents": len(mcp_broker.get_registered_agents()),
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting MCP status: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/mcp/agents")
+async def get_mcp_agents():
+    """Get detailed information about all MCP-enabled agents"""
+    try:
+        if not agents:
+            return {"agents": [], "total": 0}
+        
+        agent_details = []
+        for agent_id, agent in agents.items():
+            if hasattr(agent, 'get_health_status'):
+                agent_info = agent.get_health_status()
+                agent_details.append(agent_info)
+        
+        return {
+            "agents": agent_details,
+            "total": len(agent_details),
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting MCP agents: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/mcp/message")
+async def send_mcp_message(request: Dict[str, Any]):
+    """Send a message via MCP protocol"""
+    try:
+        if not mcp_broker:
+            raise HTTPException(status_code=500, detail="MCP broker not available")
+        
+        # Validate message structure
+        required_fields = ["message_id", "timestamp", "source_agent", "message_type"]
+        for field in required_fields:
+            if field not in request:
+                raise HTTPException(status_code=400, detail=f"Missing required field: {field}")
+        
+        # Send message via MCP broker
+        await mcp_broker.send_message(request)
+        
+        return {
+            "status": "sent",
+            "message_id": request.get("message_id"),
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Error sending MCP message: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/mcp/broadcast")
+async def broadcast_mcp_message(request: Dict[str, Any]):
+    """Broadcast a message to all MCP agents"""
+    try:
+        if not mcp_broker:
+            raise HTTPException(status_code=500, detail="MCP broker not available")
+        
+        # Create broadcast message
+        broadcast_message = {
+            "message_id": str(uuid.uuid4()),
+            "timestamp": datetime.now().isoformat(),
+            "source_agent": "api_endpoint",
+            "destination_agent": None,  # Broadcast to all
+            "message_type": request.get("message_type", "broadcast"),
+            "priority": request.get("priority", "medium"),
+            "payload": request.get("payload", {}),
+            "metadata": request.get("metadata", {})
+        }
+        
+        # Broadcast message
+        await mcp_broker.broadcast_message(broadcast_message)
+        
+        return {
+            "status": "broadcasted",
+            "message_id": broadcast_message["message_id"],
+            "timestamp": broadcast_message["timestamp"],
+            "target_agents": mcp_broker.get_registered_agents()
+        }
+        
+    except Exception as e:
+        logger.error(f"Error broadcasting MCP message: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/mcp/agent/{agent_id}/health")
+async def get_agent_health(agent_id: str):
+    """Get detailed health status of a specific MCP agent"""
+    try:
+        if agent_id not in agents:
+            raise HTTPException(status_code=404, detail=f"Agent {agent_id} not found")
+        
+        agent = agents[agent_id]
+        if hasattr(agent, 'get_health_status'):
+            return agent.get_health_status()
+        else:
+            return {
+                "agent_id": agent_id,
+                "name": getattr(agent, 'name', 'Unknown'),
+                "status": getattr(agent, 'status', 'unknown'),
+                "error": "Agent does not support health status reporting"
+            }
+        
+    except Exception as e:
+        logger.error(f"Error getting agent health: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/mcp/agent/{agent_id}/task")
+async def delegate_task_to_agent(agent_id: str, request: Dict[str, Any]):
+    """Delegate a task to a specific MCP agent"""
+    try:
+        if agent_id not in agents:
+            raise HTTPException(status_code=404, detail=f"Agent {agent_id} not found")
+        
+        agent = agents[agent_id]
+        if not hasattr(agent, 'execute_task'):
+            raise HTTPException(status_code=400, detail=f"Agent {agent_id} does not support task execution")
+        
+        # Execute task
+        result = await agent.execute_task(request)
+        
+        return {
+            "status": "completed",
+            "agent_id": agent_id,
+            "result": result,
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Error delegating task: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 # Industry-Specific GRC Endpoints
 

@@ -41,7 +41,7 @@ model_pipelines = {}
 DEFAULT_MODEL = os.getenv("DEFAULT_MODEL_NAME", "microsoft/DialoGPT-medium")
 EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "sentence-transformers/all-MiniLM-L6-v2")
 MAX_MODEL_SIZE = os.getenv("MAX_MODEL_SIZE", "2GB")
-ENABLE_GPU = os.getenv("ENABLE_GPU", "false").lower() == "true"
+ENABLE_GPU = os.getenv("ENABLE_GPU", "true").lower() == "true"
 
 # Pydantic models
 class ChatRequest(BaseModel):
@@ -108,20 +108,48 @@ async def load_chat_model(model_name: str):
         
         logger.info(f"Loading chat model: {model_name}")
         
-        # Load tokenizer and model
-        tokenizer = AutoTokenizer.from_pretrained(model_name)
-        model = AutoModelForCausalLM.from_pretrained(
+        # Load tokenizer and model with security parameters
+        tokenizer = AutoTokenizer.from_pretrained(
             model_name,
-            torch_dtype=torch.float16 if ENABLE_GPU else torch.float32,
-            device_map="auto" if ENABLE_GPU else None
+            trust_remote_code=False,  # Security: prevent execution of arbitrary code
+            local_files_only=False,   # Allow downloading from Hugging Face Hub
+            use_fast=True            # Use fast tokenizers when available
         )
         
-        # Create pipeline
+        # Ensure pad_token is defined to avoid runtime errors during text generation
+        if tokenizer.pad_token is None:
+            if tokenizer.eos_token is not None:
+                tokenizer.pad_token = tokenizer.eos_token
+                logger.info(f"Set pad_token to eos_token for model {model_name}")
+            else:
+                # Fallback: add a new padding token
+                tokenizer.add_special_tokens({'pad_token': '[PAD]'})
+                logger.info(f"Added new pad_token '[PAD]' for model {model_name}")
+        
+        # GPU optimization settings
+        device = "cuda" if ENABLE_GPU and torch.cuda.is_available() else "cpu"
+        torch_dtype = torch.float16 if ENABLE_GPU and torch.cuda.is_available() else torch.float32
+        
+        model = AutoModelForCausalLM.from_pretrained(
+            model_name,
+            torch_dtype=torch_dtype,
+            device_map="auto" if ENABLE_GPU and torch.cuda.is_available() else None,
+            trust_remote_code=False,  # Security: prevent execution of arbitrary code
+            local_files_only=False,   # Allow downloading from Hugging Face Hub
+            low_cpu_mem_usage=True,   # Optimize memory usage
+            use_cache=True           # Enable model caching for faster inference
+        )
+        
+        # Create optimized pipeline with GPU acceleration
+        # Note: When using device_map="auto", explicitly set device=None
         pipe = pipeline(
             "text-generation",
             model=model,
             tokenizer=tokenizer,
-            device=0 if ENABLE_GPU else -1
+            device=None,  # Explicitly set to None when using device_map="auto"
+            batch_size=1,   # Optimize for single requests
+            return_full_text=False,  # Only return generated text
+            clean_up_tokenization_spaces=True  # Clean up output
         )
         
         # Store in global variables
@@ -147,20 +175,36 @@ async def load_embedding_model(model_name: str):
         
         logger.info(f"Loading embedding model: {model_name}")
         
-        # Load tokenizer and model
-        tokenizer = AutoTokenizer.from_pretrained(model_name)
+        # Load tokenizer and model with security parameters
+        tokenizer = AutoTokenizer.from_pretrained(
+            model_name,
+            trust_remote_code=False,  # Security: prevent execution of arbitrary code
+            local_files_only=False,   # Allow downloading from Hugging Face Hub
+            use_fast=True            # Use fast tokenizers when available
+        )
+        # GPU optimization settings for embeddings
+        device = "cuda" if ENABLE_GPU and torch.cuda.is_available() else "cpu"
+        torch_dtype = torch.float16 if ENABLE_GPU and torch.cuda.is_available() else torch.float32
+        
         model = AutoModel.from_pretrained(
             model_name,
-            torch_dtype=torch.float16 if ENABLE_GPU else torch.float32,
-            device_map="auto" if ENABLE_GPU else None
+            torch_dtype=torch_dtype,
+            device_map="auto" if ENABLE_GPU and torch.cuda.is_available() else None,
+            trust_remote_code=False,  # Security: prevent execution of arbitrary code
+            local_files_only=False,   # Allow downloading from Hugging Face Hub
+            low_cpu_mem_usage=True,   # Optimize memory usage
+            use_cache=True           # Enable model caching for faster inference
         )
         
-        # Create pipeline
+        # Create optimized pipeline with GPU acceleration
+        # Note: When using device_map="auto", explicitly set device=None
         pipe = pipeline(
             "feature-extraction",
             model=model,
             tokenizer=tokenizer,
-            device=0 if ENABLE_GPU else -1
+            device=None,  # Explicitly set to None when using device_map="auto"
+            batch_size=1,   # Optimize for single requests
+            return_tensors="pt"  # Return PyTorch tensors for GPU processing
         )
         
         # Store in global variables
@@ -216,14 +260,31 @@ async def chat(request: ChatRequest):
         if not pipe:
             raise HTTPException(status_code=500, detail=f"Model {request.model_name} not properly loaded")
         
+        # Security: Validate and sanitize input text
+        if not request.message or len(request.message.strip()) == 0:
+            raise HTTPException(status_code=400, detail="Message cannot be empty")
+        
+        # Limit input length to prevent abuse
+        if len(request.message) > 10000:  # 10KB limit
+            raise HTTPException(status_code=400, detail="Message too long (max 10KB)")
+        
+        # Sanitize input text - remove potential injection attempts
+        import re
+        sanitized_message = re.sub(r'[<>"\']', '', request.message.strip())
+        
         # Prepare input text
-        input_text = request.message
+        input_text = sanitized_message
         if request.conversation_history:
-            # Build conversation context
+            # Build conversation context with sanitization
             context = ""
             for msg in request.conversation_history[-5:]:  # Last 5 messages
-                context += f"{msg.get('role', 'user')}: {msg.get('content', '')}\n"
-            input_text = context + f"user: {request.message}\nassistant:"
+                role = msg.get('role', 'user')
+                content = msg.get('content', '')
+                # Sanitize conversation history
+                sanitized_role = re.sub(r'[<>"\']', '', str(role))
+                sanitized_content = re.sub(r'[<>"\']', '', str(content))
+                context += f"{sanitized_role}: {sanitized_content}\n"
+            input_text = context + f"user: {sanitized_message}\nassistant:"
         
         # Generate response
         result = pipe(
@@ -269,8 +330,20 @@ async def generate_embeddings(request: EmbeddingRequest):
         if not pipe:
             raise HTTPException(status_code=500, detail=f"Model {request.model_name} not properly loaded")
         
+        # Security: Validate and sanitize input text for embeddings
+        if not request.text or len(request.text.strip()) == 0:
+            raise HTTPException(status_code=400, detail="Text cannot be empty")
+        
+        # Limit input length to prevent abuse
+        if len(request.text) > 50000:  # 50KB limit for embeddings
+            raise HTTPException(status_code=400, detail="Text too long (max 50KB)")
+        
+        # Sanitize input text - remove potential injection attempts
+        import re
+        sanitized_text = re.sub(r'[<>"\']', '', request.text.strip())
+        
         # Generate embeddings
-        embeddings = pipe(request.text)
+        embeddings = pipe(sanitized_text)
         
         # Extract the embedding vector
         # The embeddings are returned as a list of lists (tokens)

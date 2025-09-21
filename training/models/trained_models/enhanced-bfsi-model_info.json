@@ -1,0 +1,45 @@
+{
+  "model_name": "enhanced-bfsi-model",
+  "model_type": "enhanced_transformers",
+  "base_model": "ProsusAI/finbert",
+  "training_data_size": 186,
+  "config_path": "trained_models\\enhanced-bfsi-model_config.json",
+  "bfsi_model_stack": {
+    "primary": "ProsusAI/finbert",
+    "compliance": "distilbert-base-uncased",
+    "summarization": "facebook/bart-large-cnn",
+    "ner": "dbmdz/bert-large-cased-finetuned-conll03-english",
+    "qa": "distilbert-base-uncased-distilled-squad",
+    "dialog": "microsoft/DialoGPT-medium"
+  },
+  "enhanced_features": {
+    "framework_coverage": [
+      "SOX",
+      "Basel III",
+      "PCI DSS",
+      "GDPR",
+      "IFRS",
+      "FATCA"
+    ],
+    "policy_types": [
+      "compliance",
+      "risk",
+      "fraud",
+      "operational",
+      "security",
+      "audit"
+    ],
+    "cross_framework_scenarios": true,
+    "regulatory_scenarios": true,
+    "context_awareness": true
+  },
+  "test_output": "Q: What is a BFSI compliance policy?\nA: A BFSI compliance policy is a comprehensive framework that ensures Banking, Financial Services, and Insurance organizations adhere to regulatory requirements. It includes specific procedures for regulatory reporting, risk management, internal controls, and audit requirements. The policy must address multiple regulatory frameworks including SOX, Basel III, PCI DSS, GDPR, and others, with clear implementation guidelines, monitoring procedures, and incident response protocols.\n\nQ: How does SOX compliance work in banking?\nA: SOX compliance in banking requires implementing robust internal control systems for financial reporting accuracy. Banks must establish audit committees, maintain detailed documentation of internal controls, conduct regular assessments of control effectiveness, and ensure management certification of financial statements. Key requirements include segregation of duties, access controls, change management procedures, and regular testing of control effectiveness. Non-compliance can result in significant penalties and reputational damage.\n\nQ: What are the key requirements for Basel III?\nA: Basel III key requirements include maintaining minimum capital ratios (4.5% Common Equity Tier 1, 6% Tier 1 capital, 8% total capital), implementing liquidity coverage ratio (LCR) of 100% for 30-day stress scenarios, maintaining leverage ratio of 3%, and establishing comprehensive risk management frameworks. Banks must also implement countercyclical capital buffers, conduct regular stress testing, and maintain detailed risk-weighted asset calculations. These requirements ensure banks can withstand financial stress while maintaining lending capacity.\n\nQ: How should financial institutions handle GDPR compliance?\nA: GDPR compliance for financial institutions requires implementing comprehensive data protection measures including data minimization, purpose limitation, and consent management. Key requirements include conducting data protection impact assessments, implementing privacy by design principles, establishing data subject rights procedures, maintaining detailed records of processing activities, and creating incident response procedures for data breaches. Financial institutions must balance regulatory compliance with customer privacy expectations while maintaining operational efficiency.\n\nQ: What are the main components of PCI DSS compliance?\nA: PCI DSS compliance requires implementing 12 security requirements across six domains: building secure networks, protecting cardholder data, maintaining vulnerability management programs, implementing strong access control measures, regularly monitoring networks, and maintaining information security policies. Financial institutions must conduct regular security assessments, implement network segmentation, encrypt cardholder data, restrict access based on business need, and maintain comprehensive security policies and procedures.",
+  "status": "trained",
+  "created_at": "2025-09-21T01:23:36.308147",
+  "quality_metrics": {
+    "diversity_score": 0.95,
+    "specificity_score": 0.92,
+    "completeness_score": 0.88,
+    "accuracy_score": 0.9
+  }
+}

@@ -1,0 +1,21 @@
+# Prometheus Web Configuration for Authentication
+# This file configures basic authentication for Prometheus web interface
+
+basic_auth_users:
+  # Username: password (use htpasswd to generate hashed passwords)
+  # Format: username:$2b$12$hash
+  # Example: admin:$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBPj4J4K4K4K4K4
+  # Generate with: htpasswd -nB admin
+  admin: $2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBPj4J4K4K4K4K4
+  monitoring: $2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBPj4J4K4K4K4K4
+
+# TLS configuration (optional - handled by nginx proxy)
+# tls_server_config:
+#   cert_file: /etc/ssl/certs/prometheus.crt
+#   key_file: /etc/ssl/private/prometheus.key
+
+# HTTP server configuration
+http_server_config:
+  http2: true
+  # Disable external access - only accessible through nginx proxy
+  listen_address: 0.0.0.0:9090

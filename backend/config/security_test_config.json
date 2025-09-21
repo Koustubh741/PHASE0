@@ -1,0 +1,18 @@
+{
+  "test_credentials": {
+    "admin": {
+      "username": "test_admin",
+      "password": "secure_admin_password_123"
+    },
+    "compliance": {
+      "username": "test_compliance",
+      "password": "secure_compliance_password_123"
+    },
+    "risk": {
+      "username": "test_risk",
+      "password": "secure_risk_password_123"
+    }
+  },
+  "base_url": "http://localhost:8009",
+  "timeout": 30.0
+}

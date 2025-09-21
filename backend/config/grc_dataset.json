@@ -1,0 +1,27 @@
+[
+  {
+    "instruction": "Analyze the compliance risk for this banking transaction",
+    "input": "A customer is requesting to transfer $50,000 to an offshore account in a high-risk jurisdiction. The customer has been with the bank for 2 years and has a clean transaction history.",
+    "output": "This transaction presents a medium-high compliance risk due to the offshore destination and high-risk jurisdiction. Key risk factors include: 1) Offshore transfer to high-risk jurisdiction, 2) Large amount ($50,000), 3) Potential money laundering concerns. Recommended actions: 1) Enhanced due diligence (EDD) review, 2) Verify source of funds, 3) Check against sanctions lists, 4) Consider filing suspicious activity report if red flags are identified."
+  },
+  {
+    "instruction": "Identify regulatory requirements for data protection",
+    "input": "A financial institution is implementing a new customer data management system that will store personal and financial information of EU customers.",
+    "output": "For EU customers, the primary regulatory requirements are: 1) GDPR compliance - obtain explicit consent, implement data minimization, ensure right to erasure, 2) Data localization requirements, 3) Encryption of data at rest and in transit, 4) Regular security assessments, 5) Data breach notification within 72 hours, 6) Privacy by design principles, 7) Data Protection Impact Assessment (DPIA) for high-risk processing, 8) Appoint Data Protection Officer if required."
+  },
+  {
+    "instruction": "Assess operational risk for a new product launch",
+    "input": "A bank is launching a new digital lending product that uses AI for credit decisions and automated loan processing.",
+    "output": "Key operational risks include: 1) Model risk - AI decision-making may have bias or errors, 2) Technology risk - system failures could impact customer service, 3) Regulatory risk - new product may not comply with lending regulations, 4) Cybersecurity risk - increased attack surface, 5) Reputation risk - AI decisions may be perceived as unfair. Mitigation strategies: 1) Robust model validation and testing, 2) Human oversight for high-value decisions, 3) Regular model monitoring and retraining, 4) Strong cybersecurity controls, 5) Clear customer communication about AI usage, 6) Regulatory approval before launch."
+  },
+  {
+    "instruction": "Evaluate anti-money laundering controls",
+    "input": "A customer has made 15 cash deposits of $9,500 each over the past month, all just under the $10,000 reporting threshold.",
+    "output": "This pattern indicates potential structuring (smurfing) to avoid CTR reporting requirements. Red flags include: 1) Multiple deposits just under reporting threshold, 2) Pattern of avoiding CTR triggers, 3) Unusual frequency of large cash transactions. Required actions: 1) File Suspicious Activity Report (SAR) immediately, 2) Enhanced monitoring of customer account, 3) Review all related transactions, 4) Consider account restrictions, 5) Document all findings and decisions, 6) Train staff on structuring detection."
+  },
+  {
+    "instruction": "Determine capital adequacy requirements",
+    "input": "A regional bank with $2 billion in assets is planning to expand into commercial real estate lending, which would increase their exposure to this sector by 25%.",
+    "output": "Capital adequacy considerations: 1) Basel III requirements - maintain minimum 8% total capital ratio, 2) Risk-weighted assets will increase due to commercial real estate exposure, 3) Concentration risk - ensure single sector exposure doesn't exceed regulatory limits, 4) Stress testing requirements for commercial real estate portfolio, 5) Additional capital buffer may be required for concentration risk, 6) Regular monitoring of capital ratios during expansion, 7) Consider impact on leverage ratio requirements. Recommended actions: 1) Conduct stress testing, 2) Review concentration limits, 3) Ensure adequate capital buffer, 4) Develop risk management framework for new exposure."
+  }
+]

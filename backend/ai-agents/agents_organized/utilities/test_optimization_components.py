@@ -11,14 +11,14 @@ def test_imports():
     print("🧪 Testing Optimization Components...")
     
     tests = [
-        ("SimpleVectorStore", "from simple_vector_store import SimpleVectorStore; print('✅ Simple Vector Store ready')"),
+        ("SimpleVectorStore", "from .simple_vector_store import SimpleVectorStore; print('✅ Simple Vector Store ready')"),
         ("Redis", "import redis; print('✅ Redis ready')"),
         ("PostgreSQL", "import psycopg2; print('✅ PostgreSQL ready')"),
         ("FastAPI", "import fastapi; print('✅ FastAPI ready')"),
         ("Uvicorn", "import uvicorn; print('✅ Uvicorn ready')"),
         ("OpenAI", "import openai; print('✅ OpenAI ready')"),
         ("LangChain", "import langchain; print('✅ LangChain ready')"),
-        ("SimpleVectorStore", "from simple_vector_store import SimpleVectorStore; print('✅ Simple Vector Store ready')"),
+        ("SimpleVectorStore", "from .simple_vector_store import SimpleVectorStore; print('✅ Simple Vector Store ready')"),
     ]
     
     results = {}
@@ -71,7 +71,7 @@ def test_basic_functionality():
     
     try:
         # Test Simple Vector Store basic functionality
-        from simple_vector_store import SimpleVectorStore
+        from .simple_vector_store import SimpleVectorStore
         store = SimpleVectorStore("test")
         print("✅ Simple Vector Store created")
         

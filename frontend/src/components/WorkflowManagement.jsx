@@ -26,7 +26,9 @@ import {
   TableRow,
   Paper,
   Tooltip,
-  LinearProgress
+  LinearProgress,
+  Alert,
+  CircularProgress
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -39,12 +41,18 @@ import {
   CheckCircle as CompletedIcon,
   Schedule as PendingIcon
 } from '@mui/icons-material';
+import { workflowService } from '../services/workflowService';
 
 const WorkflowManagement = ({ apiCall, onSuccess, loading }) => {
   const [workflows, setWorkflows] = useState([]);
   const [openDialog, setOpenDialog] = useState(false);
   const [editingWorkflow, setEditingWorkflow] = useState(null);
-  const [formData, setFormData] = useState({
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [formData, setFormData] = useState({});
+
+  // Generate default form data
+  const getDefaultFormData = () => ({
     name: '',
     description: '',
     category: '',
@@ -55,54 +63,26 @@ const WorkflowManagement = ({ apiCall, onSuccess, loading }) => {
     steps: []
   });
 
-  // Mock data for demonstration
+  // Load workflows from API
   useEffect(() => {
-    const mockWorkflows = [
-      {
-        id: 1,
-        name: 'Policy Approval Workflow',
-        description: 'Standard workflow for policy review and approval',
-        category: 'Policy',
-        status: 'running',
-        priority: 'high',
-        assignedTo: 'Compliance Team',
-        dueDate: '2024-02-15',
-        steps: ['Draft', 'Review', 'Approval', 'Implementation'],
-        currentStep: 2,
-        progress: 60,
-        lastUpdated: '2024-01-15'
-      },
-      {
-        id: 2,
-        name: 'Risk Assessment Workflow',
-        description: 'Process for identifying and assessing risks',
-        category: 'Risk',
-        status: 'completed',
-        priority: 'medium',
-        assignedTo: 'Risk Team',
-        dueDate: '2024-01-30',
-        steps: ['Identification', 'Assessment', 'Mitigation', 'Monitoring'],
-        currentStep: 4,
-        progress: 100,
-        lastUpdated: '2024-01-25'
-      },
-      {
-        id: 3,
-        name: 'Incident Response Workflow',
-        description: 'Emergency response process for security incidents',
-        category: 'Security',
-        status: 'paused',
-        priority: 'high',
-        assignedTo: 'Security Team',
-        dueDate: '2024-02-20',
-        steps: ['Detection', 'Analysis', 'Containment', 'Recovery', 'Lessons Learned'],
-        currentStep: 3,
-        progress: 45,
-        lastUpdated: '2024-01-20'
-      }
-    ];
-    setWorkflows(mockWorkflows);
+    loadWorkflows();
   }, []);
+
+  const loadWorkflows = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      const response = await workflowService.getAllWorkflows();
+      setWorkflows(response.data || []);
+    } catch (err) {
+      console.error('Error loading workflows:', err);
+      setError('Failed to load workflows. Please try again.');
+      // Fallback to empty array instead of mock data
+      setWorkflows([]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleOpenDialog = (workflow = null) => {
     if (workflow) {
@@ -110,16 +90,7 @@ const WorkflowManagement = ({ apiCall, onSuccess, loading }) => {
       setFormData(workflow);
     } else {
       setEditingWorkflow(null);
-      setFormData({
-        name: '',
-        description: '',
-        category: '',
-        status: 'draft',
-        priority: 'medium',
-        assignedTo: '',
-        dueDate: '',
-        steps: []
-      });
+      setFormData(getDefaultFormData());
     }
     setOpenDialog(true);
   };
@@ -158,9 +129,20 @@ const WorkflowManagement = ({ apiCall, onSuccess, loading }) => {
     }
   };
 
-  const handleDeleteWorkflow = (workflowId) => {
-    setWorkflows(workflows.filter(w => w.id !== workflowId));
-    onSuccess('Workflow deleted successfully');
+  const handleDeleteWorkflow = async (workflowId) => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      
+      await workflowService.deleteWorkflow(workflowId);
+      await loadWorkflows(); // Reload from API
+      onSuccess('Workflow deleted successfully');
+    } catch (error) {
+      console.error('Error deleting workflow:', error);
+      setError('Failed to delete workflow. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const getStatusIcon = (status) => {

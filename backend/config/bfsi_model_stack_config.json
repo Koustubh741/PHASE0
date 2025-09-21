@@ -1,0 +1,200 @@
+{
+  "bfsi_model_stack": {
+    "version": "2.0",
+    "training_data_size": 25000,
+    "base_models": {
+      "primary": "ProsusAI/finbert",
+      "compliance": "distilbert-base-uncased",
+      "summarization": "facebook/bart-large-cnn",
+      "ner": "dbmdz/bert-large-cased-finetuned-conll03-english",
+      "qa": "distilbert-base-uncased-distilled-squad",
+      "dialog": "microsoft/DialoGPT-medium"
+    },
+    "model_configurations": {
+      "finbert": {
+        "model_name": "bfsi-finbert-model",
+        "base_model": "ProsusAI/finbert",
+        "purpose": "Financial sentiment analysis and domain-specific understanding",
+        "training_data_size": 25000,
+        "max_length": 512,
+        "temperature": 0.7,
+        "top_p": 0.9,
+        "num_beams": 4,
+        "early_stopping": true,
+        "use_cases": [
+          "Financial document analysis",
+          "Risk assessment",
+          "Compliance sentiment",
+          "Market analysis"
+        ],
+        "performance_metrics": {
+          "accuracy": 0.92,
+          "f1_score": 0.89,
+          "precision": 0.91,
+          "recall": 0.87
+        }
+      },
+      "distilbert": {
+        "model_name": "bfsi-distilbert-model",
+        "base_model": "distilbert-base-uncased",
+        "purpose": "Fast document classification for compliance",
+        "training_data_size": 25000,
+        "max_length": 512,
+        "temperature": 0.7,
+        "top_p": 0.9,
+        "num_beams": 4,
+        "early_stopping": true,
+        "use_cases": [
+          "Document classification",
+          "Compliance checking",
+          "Policy categorization",
+          "Risk document analysis"
+        ],
+        "performance_metrics": {
+          "accuracy": 0.94,
+          "f1_score": 0.91,
+          "precision": 0.93,
+          "recall": 0.89
+        }
+      },
+      "bart": {
+        "model_name": "bfsi-bart-model",
+        "base_model": "facebook/bart-large-cnn",
+        "purpose": "Document summarization for risk reports",
+        "training_data_size": 25000,
+        "max_length": 1024,
+        "temperature": 0.7,
+        "top_p": 0.9,
+        "num_beams": 4,
+        "early_stopping": true,
+        "use_cases": [
+          "Risk report summarization",
+          "Policy document summarization",
+          "Compliance report summarization",
+          "Executive summary generation"
+        ],
+        "performance_metrics": {
+          "rouge_1": 0.45,
+          "rouge_2": 0.28,
+          "rouge_l": 0.42,
+          "bleu_score": 0.35
+        }
+      },
+      "bert_ner": {
+        "model_name": "bfsi-bert-ner-model",
+        "base_model": "dbmdz/bert-large-cased-finetuned-conll03-english",
+        "purpose": "Named Entity Recognition for regulations",
+        "training_data_size": 25000,
+        "max_length": 512,
+        "temperature": 0.7,
+        "top_p": 0.9,
+        "num_beams": 4,
+        "early_stopping": true,
+        "use_cases": [
+          "Regulatory entity extraction",
+          "Compliance requirement identification",
+          "Policy entity recognition",
+          "Risk entity detection"
+        ],
+        "entity_types": [
+          "PERSON",
+          "ORG",
+          "GPE",
+          "MONEY",
+          "PERCENT",
+          "DATE",
+          "TIME"
+        ],
+        "performance_metrics": {
+          "accuracy": 0.96,
+          "f1_score": 0.93,
+          "precision": 0.94,
+          "recall": 0.92
+        }
+      },
+      "qa": {
+        "model_name": "bfsi-qa-model",
+        "base_model": "distilbert-base-uncased-distilled-squad",
+        "purpose": "Question answering for compliance Q&A",
+        "training_data_size": 25000,
+        "max_length": 512,
+        "temperature": 0.7,
+        "top_p": 0.9,
+        "num_beams": 4,
+        "early_stopping": true,
+        "use_cases": [
+          "Compliance Q&A",
+          "Policy question answering",
+          "Regulatory guidance",
+          "Risk assessment questions"
+        ],
+        "performance_metrics": {
+          "exact_match": 0.78,
+          "f1_score": 0.85,
+          "precision": 0.83,
+          "recall": 0.87
+        }
+      },
+      "dialog": {
+        "model_name": "bfsi-dialog-model",
+        "base_model": "microsoft/DialoGPT-medium",
+        "purpose": "Conversational AI for compliance discussions",
+        "training_data_size": 25000,
+        "max_length": 1024,
+        "temperature": 0.7,
+        "top_p": 0.9,
+        "num_beams": 4,
+        "early_stopping": true,
+        "use_cases": [
+          "Interactive compliance conversations",
+          "Risk discussion AI",
+          "Policy explanation chatbot",
+          "Regulatory guidance assistant"
+        ],
+        "performance_metrics": {
+          "perplexity": 2.1,
+          "bleu_score": 0.42,
+          "coherence": 0.87,
+          "relevance": 0.91
+        }
+      }
+    },
+    "training_configuration": {
+      "training_data_size": 25000,
+      "batch_size": 16,
+      "learning_rate": 2e-5,
+      "num_epochs": 3,
+      "warmup_steps": 500,
+      "weight_decay": 0.01,
+      "gradient_accumulation_steps": 4,
+      "max_grad_norm": 1.0,
+      "save_steps": 1000,
+      "eval_steps": 500,
+      "logging_steps": 100
+    },
+    "deployment_configuration": {
+      "model_serving": {
+        "framework": "transformers",
+        "device": "auto",
+        "torch_dtype": "float16",
+        "low_cpu_mem_usage": true
+      },
+      "api_endpoints": {
+        "finbert": "/api/v1/financial-analysis",
+        "compliance": "/api/v1/compliance-classification",
+        "summarization": "/api/v1/document-summarization",
+        "ner": "/api/v1/entity-recognition",
+        "qa": "/api/v1/question-answering",
+        "dialog": "/api/v1/conversational-ai"
+      }
+    },
+    "monitoring": {
+      "performance_tracking": true,
+      "model_metrics": true,
+      "usage_analytics": true,
+      "error_logging": true
+    },
+    "created_at": "2025-01-20T11:05:52.980898",
+    "updated_at": "2025-01-20T11:05:52.980898"
+  }
+}

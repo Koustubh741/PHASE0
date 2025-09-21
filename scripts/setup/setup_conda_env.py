@@ -1,0 +1,262 @@
+#!/usr/bin/env python3
+"""
+Conda Environment Setup Script for GRC Platform
+This script automates the creation and setup of the conda environment for the GRC platform.
+"""
+
+import os
+import sys
+import subprocess
+import platform
+from pathlib import Path
+
+
+def run_command(command, description):
+    """Run a command and handle errors."""
+    print(f"🔄 {description}...")
+    try:
+        result = subprocess.run(command, shell=True, check=True, capture_output=True, text=True)
+        print(f"✅ {description} completed successfully")
+        return result
+    except subprocess.CalledProcessError as e:
+        print(f"❌ Error during {description}:")
+        print(f"Command: {command}")
+        print(f"Error: {e.stderr}")
+        return None
+
+
+def check_conda_installed():
+    """Check if conda is installed and available."""
+    try:
+        result = subprocess.run("conda --version", shell=True, capture_output=True, text=True)
+        if result.returncode == 0:
+            print(f"✅ Conda found: {result.stdout.strip()}")
+            return True
+        else:
+            print("❌ Conda not found. Please install Anaconda or Miniconda first.")
+            return False
+    except FileNotFoundError:
+        print("❌ Conda not found. Please install Anaconda or Miniconda first.")
+        return False
+
+
+def check_cuda_availability():
+    """Check if CUDA is available on the system."""
+    try:
+        result = subprocess.run("nvidia-smi", shell=True, capture_output=True, text=True)
+        if result.returncode == 0:
+            print("✅ NVIDIA GPU detected. CUDA-enabled PyTorch will be installed.")
+            return True
+        else:
+            print("ℹ️  No NVIDIA GPU detected. CPU-only PyTorch will be installed.")
+            return False
+    except FileNotFoundError:
+        print("ℹ️  nvidia-smi not found. CPU-only PyTorch will be installed.")
+        return False
+
+
+def update_environment_yml_for_cuda(has_cuda):
+    """Update environment.yml based on CUDA availability."""
+    env_file = Path("environment.yml")
+    if not env_file.exists():
+        print("❌ environment.yml not found!")
+        return False
+    
+    content = env_file.read_text()
+    
+    if has_cuda:
+        # Replace CPU PyTorch with CUDA-enabled PyTorch
+        content = content.replace("- pytorch>=2.0.0", "- pytorch>=2.0.0\n  - pytorch-cuda=11.8  # Adjust based on your CUDA version")
+        print("✅ Environment configured for CUDA support")
+    else:
+        # Remove CUDA-specific PyTorch line completely
+        content = content.replace("  - pytorch-cuda=11.8  # Adjust based on your CUDA version\n", "")
+        print("✅ Environment configured for CPU-only PyTorch")
+    
+    env_file.write_text(content)
+    return True
+
+
+def create_conda_environment():
+    """Create the conda environment from environment.yml."""
+    print("\n🚀 Creating conda environment...")
+    
+    # Check if environment already exists
+    result = run_command("conda env list", "Checking existing environments")
+    if result and "grc-platform" in result.stdout:
+        print("⚠️  Environment 'grc-platform' already exists.")
+        response = input("Do you want to remove it and recreate? (y/N): ").strip().lower()
+        if response in ['y', 'yes']:
+            run_command("conda env remove -n grc-platform -y", "Removing existing environment")
+        else:
+            print("ℹ️  Using existing environment. Run 'conda activate grc-platform' to use it.")
+            return True
+    
+    # Create environment from file
+    result = run_command("conda env create -f environment.yml", "Creating conda environment")
+    return result is not None
+
+
+def install_additional_packages():
+    """Install additional packages that might be needed."""
+    print("\n📦 Installing additional packages...")
+    
+    additional_packages = [
+        "jupyterlab",
+        "ipywidgets",
+        "plotly",
+        "seaborn",
+        "matplotlib"
+    ]
+    
+    for package in additional_packages:
+        run_command(f"conda install -n grc-platform -c conda-forge {package} -y", 
+                   f"Installing {package}")
+
+
+def setup_environment_variables(has_cuda=False):
+    """Set up environment variables for the project."""
+    print("\n🔧 Setting up environment variables...")
+    
+    env_vars = {
+        "GRC_PLATFORM_ENV": "development",
+        "PYTHONPATH": str(Path.cwd())
+    }
+    
+    # Only set CUDA_VISIBLE_DEVICES if CUDA is available
+    if has_cuda:
+        env_vars["CUDA_VISIBLE_DEVICES"] = "0"  # Adjust based on your GPU setup
+        print("✅ CUDA environment variable set for GPU acceleration")
+    else:
+        print("ℹ️  Skipping CUDA environment variable (no CUDA detected)")
+    
+    # Create .env file
+    env_file = Path(".env")
+    with open(env_file, "w") as f:
+        f.write("# GRC Platform Environment Variables\n")
+        f.write("# Generated by setup_conda_env.py\n\n")
+        for key, value in env_vars.items():
+            f.write(f"{key}={value}\n")
+    
+    print(f"✅ Environment variables written to {env_file}")
+
+
+def create_activation_script():
+    """Create a convenient activation script."""
+    print("\n📝 Creating activation script...")
+    
+    if platform.system() == "Windows":
+        script_content = """@echo off
+echo Activating GRC Platform conda environment...
+call conda activate grc-platform
+echo Environment activated! You can now run the GRC platform.
+echo.
+echo Available commands:
+echo   - python start_bfsi_integration.py
+echo   - python start_local_ai_services.py
+echo   - python start_bfsi_frontend.py
+echo.
+"""
+        script_path = "activate_grc_env.bat"
+    else:
+        script_content = """#!/bin/bash
+echo "Activating GRC Platform conda environment..."
+source $(conda info --base)/etc/profile.d/conda.sh
+conda activate grc-platform
+echo "Environment activated! You can now run the GRC platform."
+echo ""
+echo "Available commands:"
+echo "  - python start_bfsi_integration.py"
+echo "  - python start_local_ai_services.py"
+echo "  - python start_bfsi_frontend.py"
+echo ""
+"""
+        script_path = "activate_grc_env.sh"
+    
+    with open(script_path, "w") as f:
+        f.write(script_content)
+    
+    if platform.system() != "Windows":
+        os.chmod(script_path, 0o755)
+    
+    print(f"✅ Activation script created: {script_path}")
+
+
+def verify_installation():
+    """Verify that the installation was successful."""
+    print("\n🔍 Verifying installation...")
+    
+    # Test Python import
+    test_imports = [
+        "fastapi",
+        "uvicorn", 
+        "sqlalchemy",
+        "redis",
+        "openai",
+        "langchain",
+        "chromadb",
+        "ollama",
+        "transformers",
+        "torch"
+    ]
+    
+    for package in test_imports:
+        # Construct the import and version check command safely
+        import_cmd = f"import {package}; print('{package} version:', getattr({package}, '__version__', 'unknown'))"
+        result = run_command(
+            ["conda", "run", "-n", "grc-platform", "python", "-c", import_cmd],
+            f"Testing {package} import"
+        )
+        if result is None:
+            print(f"⚠️  Warning: {package} import failed")
+
+
+def main():
+    """Main setup function."""
+    print("🚀 GRC Platform Conda Environment Setup")
+    print("=" * 50)
+    
+    # Check prerequisites
+    if not check_conda_installed():
+        sys.exit(1)
+    
+    # Check CUDA availability
+    has_cuda = check_cuda_availability()
+    
+    # Update environment.yml based on CUDA availability
+    if not update_environment_yml_for_cuda(has_cuda):
+        sys.exit(1)
+    
+    # Create conda environment
+    if not create_conda_environment():
+        print("❌ Failed to create conda environment")
+        sys.exit(1)
+    
+    # Install additional packages
+    install_additional_packages()
+    
+    # Setup environment variables
+    setup_environment_variables(has_cuda)
+    
+    # Create activation script
+    create_activation_script()
+    
+    # Verify installation
+    verify_installation()
+    
+    print("\n🎉 Conda environment setup completed successfully!")
+    print("\nNext steps:")
+    print("1. Activate the environment:")
+    if platform.system() == "Windows":
+        print("   activate_grc_env.bat")
+    else:
+        print("   source activate_grc_env.sh")
+    print("   # OR manually: conda activate grc-platform")
+    print("\n2. Start the GRC platform services:")
+    print("   python start_bfsi_integration.py")
+    print("   python start_local_ai_services.py")
+    print("   python start_bfsi_frontend.py")
+
+
+if __name__ == "__main__":
+    main()

@@ -68,8 +68,8 @@ function App() {
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
 
-  // API base URL
-  const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
+  // API base URL - loaded from environment variables
+  const API_BASE_URL = process.env.REACT_APP_API_URL;
 
   // Handle API calls
   const apiCall = async (endpoint, options = {}) => {
@@ -80,7 +80,7 @@ function App() {
       const response = await fetch(`${API_BASE_URL}${endpoint}`, {
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer dummy-token', // In production, use real JWT
+          'Authorization': `Bearer ${localStorage.getItem('authToken') || ''}`,
           ...options.headers,
         },
         ...options,

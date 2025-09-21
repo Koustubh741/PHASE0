@@ -60,57 +60,7 @@ const BFSIPolicyManagement = ({ apiCall, onSuccess, loading }) => {
   const [dialogMode, setDialogMode] = useState('add'); // 'add' or 'edit'
   const [editingPolicy, setEditingPolicy] = useState(null);
 
-  // BFSI Industry Standard Policies
-  const bfsiStandardPolicies = [
-    {
-      id: 'basel_iii',
-      name: 'Basel III Capital Requirements',
-      description: 'International regulatory framework for bank capital adequacy',
-      category: 'Capital Adequacy',
-      requirements: 'Minimum capital ratios, leverage ratios, liquidity requirements',
-      complianceLevel: 'critical'
-    },
-    {
-      id: 'sox',
-      name: 'Sarbanes-Oxley Act (SOX)',
-      description: 'Corporate governance and financial disclosure requirements',
-      category: 'Corporate Governance',
-      requirements: 'Internal controls, financial reporting, audit requirements',
-      complianceLevel: 'critical'
-    },
-    {
-      id: 'pci_dss',
-      name: 'PCI DSS',
-      description: 'Payment Card Industry Data Security Standard',
-      category: 'Data Security',
-      requirements: 'Cardholder data protection, network security, access controls',
-      complianceLevel: 'high'
-    },
-    {
-      id: 'aml_kyc',
-      name: 'AML/KYC Requirements',
-      description: 'Anti-Money Laundering and Know Your Customer regulations',
-      category: 'Anti-Money Laundering',
-      requirements: 'Customer due diligence, transaction monitoring, suspicious activity reporting',
-      complianceLevel: 'critical'
-    },
-    {
-      id: 'gdpr',
-      name: 'GDPR Compliance',
-      description: 'General Data Protection Regulation for EU customers',
-      category: 'Data Privacy',
-      requirements: 'Data protection, consent management, breach notification',
-      complianceLevel: 'high'
-    },
-    {
-      id: 'ifrs',
-      name: 'IFRS Standards',
-      description: 'International Financial Reporting Standards',
-      category: 'Financial Reporting',
-      requirements: 'Standardized financial reporting, disclosure requirements',
-      complianceLevel: 'high'
-    }
-  ];
+  // BFSI Industry Standard Policies will be loaded from API
 
   useEffect(() => {
     loadPolicyStandards();
@@ -121,10 +71,11 @@ const BFSIPolicyManagement = ({ apiCall, onSuccess, loading }) => {
     try {
       setIsLoading(true);
       const standards = await bfsiService.getPolicyStandards();
-      setPolicyStandards(standards || bfsiStandardPolicies);
+      setPolicyStandards(standards || []);
     } catch (error) {
       console.error('Failed to load policy standards:', error);
-      setPolicyStandards(bfsiStandardPolicies); // Fallback to local data
+      setPolicyStandards([]); // Start with empty array
+      setError('Failed to load policy standards. Please try again.');
     } finally {
       setIsLoading(false);
     }

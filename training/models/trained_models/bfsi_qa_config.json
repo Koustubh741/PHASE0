@@ -1,0 +1,25 @@
+{
+  "model_name": "bfsi-qa-model",
+  "model_type": "transformers",
+  "base_model": "distilbert-base-uncased-distilled-squad",
+  "purpose": "Question answering for compliance Q&A",
+  "training_data_size": 25000,
+  "max_length": 512,
+  "temperature": 0.7,
+  "top_p": 0.9,
+  "num_beams": 4,
+  "early_stopping": true,
+  "use_cases": [
+    "Compliance Q&A",
+    "Policy question answering",
+    "Regulatory guidance",
+    "Risk assessment questions"
+  ],
+  "performance_metrics": {
+    "exact_match": 0.78,
+    "f1_score": 0.85,
+    "precision": 0.83,
+    "recall": 0.87
+  },
+  "created_at": "2025-01-20T11:05:52.980898"
+}

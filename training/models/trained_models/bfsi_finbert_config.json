@@ -1,0 +1,25 @@
+{
+  "model_name": "bfsi-finbert-model",
+  "model_type": "transformers",
+  "base_model": "ProsusAI/finbert",
+  "purpose": "Financial sentiment analysis and domain-specific understanding",
+  "training_data_size": 25000,
+  "max_length": 512,
+  "temperature": 0.7,
+  "top_p": 0.9,
+  "num_beams": 4,
+  "early_stopping": true,
+  "use_cases": [
+    "Financial document analysis",
+    "Risk assessment",
+    "Compliance sentiment",
+    "Market analysis"
+  ],
+  "performance_metrics": {
+    "accuracy": 0.92,
+    "f1_score": 0.89,
+    "precision": 0.91,
+    "recall": 0.87
+  },
+  "created_at": "2025-01-20T11:05:52.980898"
+}

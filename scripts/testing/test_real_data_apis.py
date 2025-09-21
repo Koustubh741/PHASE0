@@ -22,8 +22,8 @@ logger = logging.getLogger(__name__)
 
 class RealDataAPITester:
     def __init__(self):
-        self.base_url = "http://localhost:3001"
-        self.ai_agents_url = "http://localhost:8000"
+        self.base_url = os.getenv('API_BASE_URL', 'http://localhost:3001')
+        self.ai_agents_url = os.getenv('AI_AGENTS_URL', 'http://localhost:8000')
         self.session = None
         self.auth_token = None
         self.user_id = None
