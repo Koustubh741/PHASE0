@@ -106,7 +106,10 @@ class DatabaseManager:
         async with self.async_engine.begin() as conn:
             # Import models to ensure they are registered
             from .sqlalchemy_models import Base
-            await conn.run_sync(Base.metadata.drop_all)
+            # Use CASCADE to drop dependent objects
+            await conn.execute(text("DROP SCHEMA public CASCADE"))
+            await conn.execute(text("CREATE SCHEMA public"))
+            await conn.run_sync(Base.metadata.create_all)
     
     async def check_connection(self) -> bool:
         """

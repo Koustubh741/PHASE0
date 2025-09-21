@@ -35,7 +35,7 @@ class RedisSettings(BaseSettings):
 
 class SecuritySettings(BaseSettings):
     """Security configuration settings."""
-    secret_key: str = Field(..., env="SECRET_KEY")
+    secret_key: str = Field(default="demo-secret-key-change-in-production", env="SECRET_KEY")
     algorithm: str = Field(default="HS256", env="JWT_ALGORITHM")
     token_expiry: int = Field(default=3600, env="TOKEN_EXPIRY")
     access_token_expire_minutes: int = Field(default=30, env="ACCESS_TOKEN_EXPIRE_MINUTES")

@@ -11,6 +11,14 @@ import logging
 from datetime import datetime
 from pathlib import Path
 
+# PDF processing imports
+try:
+    import PyPDF2
+    PDF_AVAILABLE = True
+except ImportError:
+    PDF_AVAILABLE = False
+    print("⚠️ PyPDF2 not available. Install with: pip install PyPDF2")
+
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -35,6 +43,8 @@ class SimplePolicyUploader:
                 content TEXT NOT NULL,
                 policy_type TEXT NOT NULL,
                 framework TEXT NOT NULL,
+                source_file TEXT,
+                file_type TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
@@ -44,7 +54,7 @@ class SimplePolicyUploader:
         conn.close()
         logger.info("Database initialized successfully")
     
-    def upload_policy_text(self, title, content, policy_type, framework):
+    def upload_policy_text(self, title, content, policy_type, framework, source_file=None, file_type=None):
         """Upload policy from text"""
         try:
             conn = sqlite3.connect(self.db_path)
@@ -52,9 +62,9 @@ class SimplePolicyUploader:
             
             # Insert policy
             cursor.execute('''
-                INSERT INTO policies (title, content, policy_type, framework)
-                VALUES (?, ?, ?, ?)
-            ''', (title, content, policy_type, framework))
+                INSERT INTO policies (title, content, policy_type, framework, source_file, file_type)
+                VALUES (?, ?, ?, ?, ?, ?)
+            ''', (title, content, policy_type, framework, source_file, file_type))
             
             policy_id = cursor.lastrowid
             conn.commit()
@@ -85,21 +95,24 @@ class SimplePolicyUploader:
             print("\n📋 Policy Upload Options:")
             print("1. Upload policy from text input")
             print("2. Upload policy from file")
-            print("3. View existing policies")
-            print("4. Create training dataset")
-            print("5. Exit")
+            print("3. Upload PDF documents")
+            print("4. View existing policies")
+            print("5. Create training dataset")
+            print("6. Exit")
             
-            choice = input("\nEnter your choice (1-5): ").strip()
+            choice = input("\nEnter your choice (1-6): ").strip()
             
             if choice == "1":
                 self.upload_from_text()
             elif choice == "2":
                 self.upload_from_file()
             elif choice == "3":
-                self.view_policies()
+                self.upload_pdf_documents()
             elif choice == "4":
-                self.create_training_data()
+                self.view_policies()
             elif choice == "5":
+                self.create_training_data()
+            elif choice == "6":
                 print("👋 Goodbye!")
                 break
             else:

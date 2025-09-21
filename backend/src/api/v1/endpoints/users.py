@@ -10,6 +10,7 @@ from datetime import datetime
 
 from ....core.application.services.user_service import UserService
 from ....core.application.services.audit_service import AuditService
+from ....core.infrastructure.dependency_injection import get_user_service, get_auth_service, get_audit_service
 from ....core.domain.entities.user import User, UserStatus, UserRole
 from ....core.domain.entities.audit_log import AuditAction, AuditResource
 from ....core.application.dto.user_dto import (
@@ -602,15 +603,12 @@ class UserController:
 user_controller = None
 
 
-def get_user_controller() -> UserController:
-    """Get user controller instance"""
-    global user_controller
-    if user_controller is None:
-        # This would be properly injected in a real implementation
-        user_service = None  # Would be injected
-        audit_service = None  # Would be injected
-        user_controller = UserController(user_service, audit_service)
-    return user_controller
+def get_user_controller(
+    user_service: UserService = Depends(get_user_service),
+    audit_service: AuditService = Depends(get_audit_service)
+) -> UserController:
+    """Get user controller instance with dependency injection"""
+    return UserController(user_service, audit_service)
 
 
 # API Routes

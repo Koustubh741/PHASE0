@@ -77,7 +77,6 @@ class PolicyModel(Base):
     
     # Relationships
     versions = relationship("PolicyVersionModel", back_populates="policy", cascade="all, delete-orphan")
-    audit_logs = relationship("AuditLogModel", back_populates="policy")
     
     # Indexes
     __table_args__ = (
@@ -156,7 +155,6 @@ class RiskModel(Base):
     assessments = relationship("RiskAssessmentModel", back_populates="risk", cascade="all, delete-orphan")
     treatments = relationship("RiskTreatmentModel", back_populates="risk", cascade="all, delete-orphan")
     mitigations = relationship("RiskMitigationModel", back_populates="risk", cascade="all, delete-orphan")
-    audit_logs = relationship("AuditLogModel", back_populates="risk")
     
     # Indexes
     __table_args__ = (
@@ -290,7 +288,6 @@ class ControlModel(Base):
     # Relationships
     owners = relationship("ControlOwnerModel", back_populates="control", cascade="all, delete-orphan")
     tests = relationship("ControlTestModel", back_populates="control", cascade="all, delete-orphan")
-    audit_logs = relationship("AuditLogModel", back_populates="control")
     
     # Indexes
     __table_args__ = (
@@ -403,7 +400,6 @@ class IssueModel(Base):
     actions = relationship("IssueActionModel", back_populates="issue", cascade="all, delete-orphan")
     comments = relationship("IssueCommentModel", back_populates="issue", cascade="all, delete-orphan")
     evidence = relationship("IssueEvidenceModel", back_populates="issue", cascade="all, delete-orphan")
-    audit_logs = relationship("AuditLogModel", back_populates="issue")
     
     # Indexes
     __table_args__ = (
@@ -526,18 +522,25 @@ class AuditLogModel(Base):
     
     # Relationships
     user = relationship("UserModel", back_populates="audit_logs")
-    policy = relationship("PolicyModel", back_populates="audit_logs")
-    risk = relationship("RiskModel", back_populates="audit_logs")
-    control = relationship("ControlModel", back_populates="audit_logs")
-    issue = relationship("IssueModel", back_populates="audit_logs")
+
+
+class OrganizationModel(Base):
+    """Organization database model"""
+    __tablename__ = "organizations"
     
-    # Indexes
-    __table_args__ = (
-        Index('idx_audit_logs_user_timestamp', 'user_id', 'timestamp'),
-        Index('idx_audit_logs_org_timestamp', 'organization_id', 'timestamp'),
-        Index('idx_audit_logs_resource_timestamp', 'resource', 'resource_id', 'timestamp'),
-        Index('idx_audit_logs_action_timestamp', 'action', 'timestamp'),
-        Index('idx_audit_logs_severity_timestamp', 'severity', 'timestamp'),
-        Index('idx_audit_logs_ip_timestamp', 'ip_address', 'timestamp'),
-        Index('idx_audit_logs_success_timestamp', 'success', 'timestamp'),
-    )
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    name = Column(String(255), nullable=False, index=True)
+    description = Column(Text, nullable=True)
+    organization_type = Column(String(50), nullable=True, index=True)
+    industry = Column(String(100), nullable=True, index=True)
+    size = Column(String(50), nullable=True, index=True)
+    address = Column(Text, nullable=True)
+    contact_email = Column(String(255), nullable=True, index=True)
+    contact_phone = Column(String(50), nullable=True)
+    website = Column(String(255), nullable=True)
+    is_active = Column(Boolean, default=True, nullable=False, index=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+    
+    # Relationships
+    # users = relationship("UserModel", back_populates="organization")  # TODO: Fix foreign key relationship

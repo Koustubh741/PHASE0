@@ -31,6 +31,14 @@ async def init_database():
     
     print("✅ Database connection successful!")
     
+    # Drop and recreate tables
+    print("🗑️  Dropping existing database tables...")
+    try:
+        await db_manager.drop_tables()
+        print("✅ Database tables dropped successfully!")
+    except Exception as e:
+        print(f"⚠️  Warning: Failed to drop database tables: {e}")
+    
     # Create tables
     print("🏗️  Creating database tables...")
     try:
