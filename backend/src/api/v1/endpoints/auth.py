@@ -9,6 +9,7 @@ from typing import Dict, Any
 
 from ....core.application.services.auth_service import AuthService, AuthenticationError, AuthorizationError
 from ....core.application.services.audit_service import AuditService
+from ....core.infrastructure.dependency_injection import get_auth_service, get_audit_service
 from ....core.domain.entities.user import User
 from ....core.domain.entities.audit_log import AuditAction, AuditResource, AuditSeverity
 from ....core.application.dto.auth_dto import (
@@ -416,120 +417,114 @@ class AuthController:
         return request.client.host if request.client else "unknown"
 
 
-# Create controller instance (would be injected in real implementation)
-auth_controller = None
-
-
-def get_auth_controller() -> AuthController:
-    """Get auth controller instance"""
-    global auth_controller
-    if auth_controller is None:
-        # This would be properly injected in a real implementation
-        auth_service = None  # Would be injected
-        audit_service = None  # Would be injected
-        auth_controller = AuthController(auth_service, audit_service)
-    return auth_controller
+# Dependency injection for auth controller
+def get_auth_controller(
+    auth_service: AuthService = Depends(get_auth_service),
+    audit_service: AuditService = Depends(get_audit_service)
+) -> AuthController:
+    """Get auth controller instance with dependency injection"""
+    return AuthController(auth_service, audit_service)
 
 
 # API Routes
 @router.post("/login", response_model=TokenResponse)
 async def login(
     login_request: LoginRequest,
-    request: Request
+    controller: AuthController = Depends(get_auth_controller),
+    request: Request = None
 ):
     """User login endpoint"""
-    controller = get_auth_controller()
     return await controller.login(login_request, request)
 
 
 @router.post("/logout")
 async def logout(
+    controller: AuthController = Depends(get_auth_controller),
     current_user: User = Depends(require_auth),
     request: Request = None
 ):
     """User logout endpoint"""
-    controller = get_auth_controller()
     return await controller.logout(current_user, request)
 
 
 @router.post("/refresh", response_model=TokenResponse)
 async def refresh_token(
     refresh_token: str,
-    request: Request
+    controller: AuthController = Depends(get_auth_controller),
+    request: Request = None
 ):
     """Refresh JWT token endpoint"""
-    controller = get_auth_controller()
     return await controller.refresh_token(refresh_token, request)
 
 
 @router.post("/change-password")
 async def change_password(
     password_request: PasswordChangeRequest,
+    controller: AuthController = Depends(get_auth_controller),
     current_user: User = Depends(require_auth),
     request: Request = None
 ):
     """Change user password endpoint"""
-    controller = get_auth_controller()
     return await controller.change_password(password_request, current_user, request)
 
 
 @router.post("/reset-password")
 async def initiate_password_reset(
     reset_request: PasswordResetRequest,
-    request: Request
+    controller: AuthController = Depends(get_auth_controller),
+    request: Request = None
 ):
     """Initiate password reset endpoint"""
-    controller = get_auth_controller()
     return await controller.initiate_password_reset(reset_request, request)
 
 
 @router.post("/reset-password/confirm")
 async def reset_password(
     reset_request: PasswordResetConfirmRequest,
-    request: Request
+    controller: AuthController = Depends(get_auth_controller),
+    request: Request = None
 ):
     """Reset password endpoint"""
-    controller = get_auth_controller()
     return await controller.reset_password(reset_request, request)
 
 
 @router.post("/2fa/setup", response_model=TwoFactorSetupResponse)
 async def setup_two_factor(
     setup_request: TwoFactorSetupRequest,
+    controller: AuthController = Depends(get_auth_controller),
     current_user: User = Depends(require_auth),
     request: Request = None
 ):
     """Setup two-factor authentication endpoint"""
-    controller = get_auth_controller()
     return await controller.setup_two_factor(setup_request, current_user, request)
 
 
 @router.post("/2fa/verify")
 async def verify_two_factor(
     verify_request: TwoFactorVerifyRequest,
+    controller: AuthController = Depends(get_auth_controller),
     current_user: User = Depends(require_auth)
 ):
     """Verify two-factor authentication endpoint"""
-    controller = get_auth_controller()
     return await controller.verify_two_factor(verify_request, current_user)
 
 
 @router.get("/session", response_model=SessionInfo)
 async def get_current_session(
+    controller: AuthController = Depends(get_auth_controller),
     current_user: User = Depends(require_auth),
     request: Request = None
 ):
     """Get current session information endpoint"""
-    controller = get_auth_controller()
     return await controller.get_current_session(current_user, request)
 
 
 @router.post("/audit-logs")
 async def get_audit_logs(
     filter_request: AuditLogFilter,
+    controller: AuthController = Depends(get_auth_controller),
     current_user: User = Depends(require_auth)
 ):
     """Get audit logs endpoint"""
-    controller = get_auth_controller()
     return await controller.get_audit_logs(filter_request, current_user)
 

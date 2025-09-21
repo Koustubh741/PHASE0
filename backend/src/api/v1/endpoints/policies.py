@@ -10,6 +10,7 @@ from datetime import datetime
 
 from ....core.application.services.policy_service import PolicyService
 from ....core.application.services.audit_service import AuditService
+from ....core.infrastructure.dependency_injection import get_policy_service, get_audit_service
 from ....core.domain.entities.policy import Policy, PolicyStatus, PolicyType
 from ....core.domain.entities.user import User
 from ....core.domain.entities.audit_log import AuditAction, AuditResource
@@ -295,36 +296,33 @@ class PolicyController:
             raise HTTPException(status_code=500, detail="Failed to get policy statistics")
 
 
-# Create controller instance
-policy_controller = None
-
-def get_policy_controller() -> PolicyController:
-    global policy_controller
-    if policy_controller is None:
-        policy_service = None  # Would be injected
-        audit_service = None  # Would be injected
-        policy_controller = PolicyController(policy_service, audit_service)
-    return policy_controller
+# Dependency injection for policy controller
+def get_policy_controller(
+    policy_service: PolicyService = Depends(get_policy_service),
+    audit_service: AuditService = Depends(get_audit_service)
+) -> PolicyController:
+    """Get policy controller instance with dependency injection"""
+    return PolicyController(policy_service, audit_service)
 
 
 # API Routes
 @router.post("", response_model=PolicyResponse)
 async def create_policy(
     policy_request: PolicyCreateRequest,
+    controller: PolicyController = Depends(get_policy_controller),
     current_user: User = Depends(require_permission("can_create_policies"))
 ):
     """Create a new policy"""
-    controller = get_policy_controller()
     return await controller.create_policy(policy_request, current_user)
 
 
 @router.get("/{policy_id}", response_model=PolicyResponse)
 async def get_policy(
     policy_id: UUID,
+    controller: PolicyController = Depends(get_policy_controller),
     current_user: User = Depends(require_auth)
 ):
     """Get policy by ID"""
-    controller = get_policy_controller()
     return await controller.get_policy(policy_id, current_user)
 
 
@@ -332,20 +330,20 @@ async def get_policy(
 async def update_policy(
     policy_id: UUID,
     policy_request: PolicyUpdateRequest,
+    controller: PolicyController = Depends(get_policy_controller),
     current_user: User = Depends(require_auth)
 ):
     """Update policy"""
-    controller = get_policy_controller()
     return await controller.update_policy(policy_id, policy_request, current_user)
 
 
 @router.delete("/{policy_id}")
 async def delete_policy(
     policy_id: UUID,
+    controller: PolicyController = Depends(get_policy_controller),
     current_user: User = Depends(require_permission("can_delete_policies"))
 ):
     """Delete policy"""
-    controller = get_policy_controller()
     return await controller.delete_policy(policy_id, current_user)
 
 
@@ -356,10 +354,10 @@ async def list_policies(
     status: Optional[str] = Query(None),
     policy_type: Optional[str] = Query(None),
     owner_id: Optional[str] = Query(None),
+    controller: PolicyController = Depends(get_policy_controller),
     current_user: User = Depends(require_auth)
 ):
     """List policies with filtering and pagination"""
-    controller = get_policy_controller()
     return await controller.list_policies(skip, limit, status, policy_type, owner_id, current_user)
 
 
@@ -367,10 +365,10 @@ async def list_policies(
 async def approve_policy(
     policy_id: UUID,
     approval_request: PolicyApprovalRequest,
+    controller: PolicyController = Depends(get_policy_controller),
     current_user: User = Depends(require_permission("can_approve_policies"))
 ):
     """Approve or reject policy"""
-    controller = get_policy_controller()
     return await controller.approve_policy(policy_id, approval_request, current_user)
 
 
@@ -378,17 +376,17 @@ async def approve_policy(
 async def create_policy_version(
     policy_id: UUID,
     version_request: PolicyVersionRequest,
+    controller: PolicyController = Depends(get_policy_controller),
     current_user: User = Depends(require_auth)
 ):
     """Create new policy version"""
-    controller = get_policy_controller()
     return await controller.create_policy_version(policy_id, version_request, current_user)
 
 
 @router.get("/statistics", response_model=PolicyStatisticsResponse)
 async def get_policy_statistics(
+    controller: PolicyController = Depends(get_policy_controller),
     current_user: User = Depends(require_auth)
 ):
     """Get policy statistics"""
-    controller = get_policy_controller()
     return await controller.get_policy_statistics(current_user)

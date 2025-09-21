@@ -10,6 +10,7 @@ from datetime import datetime
 
 from ....core.application.services.workflow_service import WorkflowService, WorkflowType
 from ....core.application.services.audit_service import AuditService
+from ....core.infrastructure.dependency_injection import get_workflow_service, get_audit_service
 from ....core.domain.entities.user import User
 from ....core.domain.entities.audit_log import AuditAction, AuditResource
 from ....core.application.dto.workflow_dto import (
@@ -280,36 +281,33 @@ class WorkflowController:
             raise HTTPException(status_code=500, detail="Failed to get workflow statistics")
 
 
-# Create controller instance
-workflow_controller = None
-
-def get_workflow_controller() -> WorkflowController:
-    global workflow_controller
-    if workflow_controller is None:
-        workflow_service = None  # Would be injected
-        audit_service = None  # Would be injected
-        workflow_controller = WorkflowController(workflow_service, audit_service)
-    return workflow_controller
+# Dependency injection for workflow controller
+def get_workflow_controller(
+    workflow_service: WorkflowService = Depends(get_workflow_service),
+    audit_service: AuditService = Depends(get_audit_service)
+) -> WorkflowController:
+    """Get workflow controller instance with dependency injection"""
+    return WorkflowController(workflow_service, audit_service)
 
 
 # API Routes
 @router.post("", response_model=WorkflowResponse)
 async def create_workflow(
     workflow_request: WorkflowCreateRequest,
+    controller: WorkflowController = Depends(get_workflow_controller),
     current_user: User = Depends(require_auth)
 ):
     """Create a new workflow"""
-    controller = get_workflow_controller()
     return await controller.create_workflow(workflow_request, current_user)
 
 
 @router.get("/{workflow_id}", response_model=WorkflowStatusResponse)
 async def get_workflow(
     workflow_id: UUID,
+    controller: WorkflowController = Depends(get_workflow_controller),
     current_user: User = Depends(require_auth)
 ):
     """Get workflow status"""
-    controller = get_workflow_controller()
     return await controller.get_workflow(workflow_id, current_user)
 
 
@@ -318,10 +316,10 @@ async def approve_workflow_step(
     workflow_id: UUID,
     step_id: str,
     approval_request: WorkflowApprovalRequest,
+    controller: WorkflowController = Depends(get_workflow_controller),
     current_user: User = Depends(require_auth)
 ):
     """Approve a workflow step"""
-    controller = get_workflow_controller()
     return await controller.approve_workflow_step(workflow_id, step_id, approval_request, current_user)
 
 
@@ -330,10 +328,10 @@ async def reject_workflow_step(
     workflow_id: UUID,
     step_id: str,
     rejection_request: WorkflowRejectionRequest,
+    controller: WorkflowController = Depends(get_workflow_controller),
     current_user: User = Depends(require_auth)
 ):
     """Reject a workflow step"""
-    controller = get_workflow_controller()
     return await controller.reject_workflow_step(workflow_id, step_id, rejection_request, current_user)
 
 
@@ -341,19 +339,19 @@ async def reject_workflow_step(
 async def escalate_workflow(
     workflow_id: UUID,
     escalation_request: WorkflowEscalationRequest,
+    controller: WorkflowController = Depends(get_workflow_controller),
     current_user: User = Depends(require_auth)
 ):
     """Escalate a workflow"""
-    controller = get_workflow_controller()
     return await controller.escalate_workflow(workflow_id, escalation_request, current_user)
 
 
 @router.get("/pending", response_model=WorkflowListResponse)
 async def list_user_pending_workflows(
+    controller: WorkflowController = Depends(get_workflow_controller),
     current_user: User = Depends(require_auth)
 ):
     """List workflows pending user approval"""
-    controller = get_workflow_controller()
     return await controller.list_user_pending_workflows(current_user)
 
 
@@ -364,17 +362,17 @@ async def list_workflows(
     workflow_type: Optional[str] = Query(None),
     status: Optional[str] = Query(None),
     entity_type: Optional[str] = Query(None),
+    controller: WorkflowController = Depends(get_workflow_controller),
     current_user: User = Depends(require_auth)
 ):
     """List workflows with filtering"""
-    controller = get_workflow_controller()
     return await controller.list_workflows(skip, limit, workflow_type, status, entity_type, current_user)
 
 
 @router.get("/statistics", response_model=WorkflowStatisticsResponse)
 async def get_workflow_statistics(
+    controller: WorkflowController = Depends(get_workflow_controller),
     current_user: User = Depends(require_auth)
 ):
     """Get workflow statistics"""
-    controller = get_workflow_controller()
     return await controller.get_workflow_statistics(current_user)

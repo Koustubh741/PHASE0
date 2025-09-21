@@ -599,10 +599,7 @@ class UserController:
             )
 
 
-# Create controller instance (would be injected in real implementation)
-user_controller = None
-
-
+# Dependency injection for user controller
 def get_user_controller(
     user_service: UserService = Depends(get_user_service),
     audit_service: AuditService = Depends(get_audit_service)
@@ -615,20 +612,20 @@ def get_user_controller(
 @router.post("", response_model=UserResponse)
 async def create_user(
     user_request: UserCreateRequest,
+    controller: UserController = Depends(get_user_controller),
     current_user: User = Depends(require_permission("can_manage_users"))
 ):
     """Create a new user"""
-    controller = get_user_controller()
     return await controller.create_user(user_request, current_user)
 
 
 @router.get("/{user_id}", response_model=UserResponse)
 async def get_user(
     user_id: UUID,
+    controller: UserController = Depends(get_user_controller),
     current_user: User = Depends(require_auth)
 ):
     """Get user by ID"""
-    controller = get_user_controller()
     return await controller.get_user(user_id, current_user)
 
 
@@ -636,20 +633,20 @@ async def get_user(
 async def update_user(
     user_id: UUID,
     user_request: UserUpdateRequest,
+    controller: UserController = Depends(get_user_controller),
     current_user: User = Depends(require_auth)
 ):
     """Update user information"""
-    controller = get_user_controller()
     return await controller.update_user(user_id, user_request, current_user)
 
 
 @router.delete("/{user_id}")
 async def delete_user(
     user_id: UUID,
+    controller: UserController = Depends(get_user_controller),
     current_user: User = Depends(require_permission("can_manage_users"))
 ):
     """Delete user"""
-    controller = get_user_controller()
     return await controller.delete_user(user_id, current_user)
 
 
@@ -660,20 +657,20 @@ async def list_users(
     role: Optional[str] = Query(None),
     status: Optional[str] = Query(None),
     department: Optional[str] = Query(None),
+    controller: UserController = Depends(get_user_controller),
     current_user: User = Depends(require_permission("can_manage_users"))
 ):
     """List users with filtering and pagination"""
-    controller = get_user_controller()
     return await controller.list_users(skip, limit, role, status, department, current_user)
 
 
 @router.post("/search", response_model=UserListResponse)
 async def search_users(
     search_request: UserSearchRequest,
+    controller: UserController = Depends(get_user_controller),
     current_user: User = Depends(require_permission("can_manage_users"))
 ):
     """Search users"""
-    controller = get_user_controller()
     return await controller.search_users(search_request, current_user)
 
 
@@ -681,10 +678,10 @@ async def search_users(
 async def change_user_role(
     user_id: UUID,
     role_request: UserRoleChangeRequest,
+    controller: UserController = Depends(get_user_controller),
     current_user: User = Depends(require_permission("can_manage_users"))
 ):
     """Change user role"""
-    controller = get_user_controller()
     return await controller.change_user_role(user_id, role_request, current_user)
 
 
@@ -692,27 +689,27 @@ async def change_user_role(
 async def change_user_status(
     user_id: UUID,
     status_request: UserStatusChangeRequest,
+    controller: UserController = Depends(get_user_controller),
     current_user: User = Depends(require_permission("can_manage_users"))
 ):
     """Change user status"""
-    controller = get_user_controller()
     return await controller.change_user_status(user_id, status_request, current_user)
 
 
 @router.post("/bulk-update")
 async def bulk_update_users(
     bulk_request: UserBulkUpdateRequest,
+    controller: UserController = Depends(get_user_controller),
     current_user: User = Depends(require_permission("can_manage_users"))
 ):
     """Bulk update users"""
-    controller = get_user_controller()
     return await controller.bulk_update_users(bulk_request, current_user)
 
 
 @router.get("/statistics", response_model=UserStatisticsResponse)
 async def get_user_statistics(
+    controller: UserController = Depends(get_user_controller),
     current_user: User = Depends(require_permission("can_manage_users"))
 ):
     """Get user statistics"""
-    controller = get_user_controller()
     return await controller.get_user_statistics(current_user)
