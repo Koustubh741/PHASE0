@@ -120,7 +120,8 @@ async def root():
 
 # Include API routes
 from fastapi import APIRouter
-from ..api.v1.endpoints import auth, users, policies, workflows, bfsi_ai, analytics, monitoring, workflow_automation, compliance_frameworks
+from ..api.v1.endpoints import auth, users, policies, workflows, bfsi_ai, analytics, monitoring, workflow_automation, compliance_frameworks, ml_ai
+from .docs import setup_api_documentation
 
 # API v1 router
 api_v1_router = APIRouter(prefix="/api/v1")
@@ -135,9 +136,13 @@ api_v1_router.include_router(analytics.router) # Added analytics router
 api_v1_router.include_router(monitoring.router) # Added monitoring router
 api_v1_router.include_router(workflow_automation.router) # Added workflow automation router
 api_v1_router.include_router(compliance_frameworks.router) # Added compliance frameworks router
+api_v1_router.include_router(ml_ai.router) # Added ML-enhanced AI router
 
 # Include the main API router
 app.include_router(api_v1_router)
+
+# Setup comprehensive API documentation
+setup_api_documentation(app)
 
 # API Gateway Integration
 # Note: The API Gateway is available as a separate service at backend/src/core/infrastructure/api_gateway/
