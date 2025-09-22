@@ -1,0 +1,210 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database (Production)
+  postgres:
+    image: postgres:15-alpine
+    container_name: grc-postgres-prod
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-grc_platform}
+      POSTGRES_USER: ${POSTGRES_USER:-grc_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_HOST_AUTH_METHOD: trust
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./config/database/schema.sql:/docker-entrypoint-initdb.d/schema.sql
+      - ./backups:/backups
+    networks:
+      - grc-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-grc_user} -d ${POSTGRES_DB:-grc_platform}"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # Redis for caching and session management
+  redis:
+    image: redis:7-alpine
+    container_name: grc-redis-prod
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - grc-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # Backend API Service (Production)
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: grc-backend-prod
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-grc_user}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-grc_platform}
+      - REDIS_URL=redis://redis:6379
+      - SECRET_KEY=${SECRET_KEY}
+      - DEBUG=false
+      - ENVIRONMENT=production
+      - LOG_LEVEL=INFO
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - grc-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Frontend React Application (Production)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: grc-frontend-prod
+    environment:
+      - REACT_APP_API_URL=${REACT_APP_API_URL:-http://localhost/api}
+      - REACT_APP_ENVIRONMENT=production
+    ports:
+      - "${FRONTEND_PORT:-3000}:3000"
+    depends_on:
+      - backend
+    networks:
+      - grc-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # API Gateway (Production)
+  api-gateway:
+    build:
+      context: ./backend/src/core/infrastructure/api_gateway
+      dockerfile: Dockerfile
+    container_name: grc-api-gateway-prod
+    environment:
+      - BACKEND_URL=http://backend:8000
+      - FRONTEND_URL=http://frontend:3000
+      - REDIS_URL=redis://redis:6379
+      - ENVIRONMENT=production
+    ports:
+      - "${API_GATEWAY_PORT:-8080}:8080"
+    depends_on:
+      - backend
+      - redis
+    networks:
+      - grc-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # BFSI AI Agents Service (Production)
+  bfsi-ai-agents:
+    build:
+      context: ./backend/services/bfsi
+      dockerfile: Dockerfile
+    container_name: grc-bfsi-ai-agents-prod
+    environment:
+      - BACKEND_URL=http://backend:8000
+      - REDIS_URL=redis://redis:6379
+      - AI_MODEL_PATH=/app/models
+      - ENVIRONMENT=production
+    ports:
+      - "${BFSI_AI_PORT:-8001}:8001"
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+      - ai_models:/app/models
+    depends_on:
+      - backend
+      - redis
+    networks:
+      - grc-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Nginx Reverse Proxy (Production)
+  nginx:
+    image: nginx:alpine
+    container_name: grc-nginx-prod
+    ports:
+      - "${NGINX_HTTP_PORT:-80}:80"
+      - "${NGINX_HTTPS_PORT:-443}:443"
+    volumes:
+      - ./infrastructure/nginx/nginx.conf:/etc/nginx/nginx.conf
+      - ./infrastructure/nginx/ssl:/etc/nginx/ssl
+      - ./logs/nginx:/var/log/nginx
+    depends_on:
+      - frontend
+      - backend
+      - api-gateway
+    networks:
+      - grc-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Database backup service
+  db-backup:
+    image: postgres:15-alpine
+    container_name: grc-db-backup
+    environment:
+      - PGPASSWORD=${POSTGRES_PASSWORD}
+    volumes:
+      - ./backups:/backups
+      - ./scripts:/scripts
+    command: >
+      sh -c "
+        while true; do
+          pg_dump -h postgres -U ${POSTGRES_USER:-grc_user} -d ${POSTGRES_DB:-grc_platform} > /backups/backup_$$(date +%Y%m%d_%H%M%S).sql
+          find /backups -name 'backup_*.sql' -mtime +7 -delete
+          sleep 86400
+        done
+      "
+    depends_on:
+      - postgres
+    networks:
+      - grc-network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  ai_models:
+    driver: local
+
+networks:
+  grc-network:
+    driver: bridge
