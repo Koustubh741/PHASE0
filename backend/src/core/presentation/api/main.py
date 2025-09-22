@@ -134,6 +134,12 @@ api_v1_router.include_router(workflows.router)
 # Include the main API router
 app.include_router(api_v1_router)
 
+# API Gateway Integration
+# Note: The API Gateway is available as a separate service at backend/src/core/infrastructure/api_gateway/
+# It can be run independently to route requests to microservices
+# To use the API Gateway instead of direct routes, comment out the above router inclusion
+# and use the gateway service instead
+
 
 if __name__ == "__main__":
     import uvicorn

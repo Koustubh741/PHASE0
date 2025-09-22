@@ -50,6 +50,17 @@ class SimplePolicyUploader:
             )
         ''')
         
+        # Add new columns if they don't exist (for existing databases)
+        try:
+            cursor.execute('ALTER TABLE policies ADD COLUMN source_file TEXT')
+        except sqlite3.OperationalError:
+            pass  # Column already exists
+        
+        try:
+            cursor.execute('ALTER TABLE policies ADD COLUMN file_type TEXT')
+        except sqlite3.OperationalError:
+            pass  # Column already exists
+        
         conn.commit()
         conn.close()
         logger.info("Database initialized successfully")
@@ -366,6 +377,113 @@ class SimplePolicyUploader:
         except Exception as e:
             logger.error(f"Error getting statistics: {e}")
             return None
+
+    def upload_pdf_documents(self):
+        """Upload PDF documents and extract text"""
+        if not PDF_AVAILABLE:
+            print("❌ PDF processing not available. Please install PyPDF2:")
+            print("   pip install PyPDF2")
+            return
+        
+        print("\n📄 Upload PDF Documents")
+        print("-" * 30)
+        
+        # Get PDF file path
+        pdf_path = input("Enter path to PDF file: ").strip()
+        if not pdf_path:
+            print("❌ No file path provided")
+            return
+        
+        if not os.path.exists(pdf_path):
+            print(f"❌ File not found: {pdf_path}")
+            return
+        
+        if not pdf_path.lower().endswith('.pdf'):
+            print("❌ File must be a PDF document")
+            return
+        
+        try:
+            # Extract text from PDF
+            print("📖 Extracting text from PDF...")
+            content = self._extract_pdf_text(pdf_path)
+            
+            if not content.strip():
+                print("❌ No text content found in PDF")
+                return
+            
+            print(f"✅ Extracted {len(content)} characters from PDF")
+            
+            # Get policy details
+            title = input("Enter policy title: ").strip()
+            if not title:
+                title = os.path.basename(pdf_path).replace('.pdf', '')
+            
+            print("\nPolicy Types:")
+            print("1. Risk Management")
+            print("2. Compliance")
+            print("3. Security")
+            print("4. Governance")
+            print("5. Operational")
+            print("6. Financial")
+            print("7. Other")
+            
+            type_choice = input("Select policy type (1-7): ").strip()
+            type_map = {
+                "1": "risk", "2": "compliance", "3": "security", 
+                "4": "governance", "5": "operational", "6": "financial", "7": "other"
+            }
+            policy_type = type_map.get(type_choice, "other")
+            
+            print("\nFrameworks:")
+            print("1. Basel III")
+            print("2. SOX")
+            print("3. GDPR")
+            print("4. PCI DSS")
+            print("5. ISO 27001")
+            print("6. COSO")
+            print("7. Other")
+            
+            framework_choice = input("Select framework (1-7): ").strip()
+            framework_map = {
+                "1": "basel_iii", "2": "sox", "3": "gdpr", 
+                "4": "pci_dss", "5": "iso_27001", "6": "coso", "7": "other"
+            }
+            framework = framework_map.get(framework_choice, "other")
+            
+            # Upload the policy
+            result = self.upload_policy_text(
+                title, content, policy_type, framework, 
+                os.path.basename(pdf_path), "pdf"
+            )
+            
+            if result["success"]:
+                print(f"✅ PDF policy uploaded successfully!")
+                print(f"   Policy ID: {result['policy_id']}")
+                print(f"   Title: {title}")
+                print(f"   Type: {policy_type}")
+                print(f"   Framework: {framework}")
+                print(f"   Source: {os.path.basename(pdf_path)}")
+                print(f"   Content Length: {len(content)} characters")
+            else:
+                print(f"❌ Upload failed: {result['error']}")
+                
+        except Exception as e:
+            print(f"❌ Error processing PDF: {e}")
+    
+    def _extract_pdf_text(self, pdf_path):
+        """Extract text content from PDF file"""
+        try:
+            with open(pdf_path, 'rb') as file:
+                pdf_reader = PyPDF2.PdfReader(file)
+                text = ""
+                
+                for page_num in range(len(pdf_reader.pages)):
+                    page = pdf_reader.pages[page_num]
+                    text += page.extract_text() + "\n"
+                
+                return text.strip()
+        except Exception as e:
+            raise Exception(f"Failed to extract text from PDF: {e}")
 
 def main():
     """Main function"""

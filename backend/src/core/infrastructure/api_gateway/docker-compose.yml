@@ -1,0 +1,115 @@
+version: '3.8'
+
+services:
+  # API Gateway
+  api-gateway:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - DEBUG=true
+      - CORS_ORIGINS=["*"]
+    depends_on:
+      - policy-service
+      - risk-service
+      - compliance-service
+      - workflow-service
+      - ai-agents-service
+    networks:
+      - grc-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Policy Microservice
+  policy-service:
+    build:
+      context: ../external_services
+      dockerfile: Dockerfile.policy
+    ports:
+      - "8001:8001"
+    environment:
+      - DEBUG=true
+    networks:
+      - grc-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Risk Microservice
+  risk-service:
+    build:
+      context: ../external_services
+      dockerfile: Dockerfile.risk
+    ports:
+      - "8002:8002"
+    environment:
+      - DEBUG=true
+    networks:
+      - grc-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Compliance Microservice
+  compliance-service:
+    build:
+      context: ../external_services
+      dockerfile: Dockerfile.compliance
+    ports:
+      - "8003:8003"
+    environment:
+      - DEBUG=true
+    networks:
+      - grc-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8003/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Workflow Microservice
+  workflow-service:
+    build:
+      context: ../external_services
+      dockerfile: Dockerfile.workflow
+    ports:
+      - "8004:8004"
+    environment:
+      - DEBUG=true
+    networks:
+      - grc-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8004/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # AI Agents Microservice
+  ai-agents-service:
+    build:
+      context: ../external_services
+      dockerfile: Dockerfile.ai-agents
+    ports:
+      - "8005:8005"
+    environment:
+      - DEBUG=true
+    networks:
+      - grc-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8005/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+networks:
+  grc-network:
+    driver: bridge
