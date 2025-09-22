@@ -8,7 +8,7 @@ export const aiAgentsService = {
   // Get AI agents status
   getAgentsStatus: async () => {
     try {
-      return await apiService.get(`${API_ENDPOINTS.AI_AGENTS}/agents/status`);
+      return await apiService.get(`${API_ENDPOINTS.AI_AGENTS.BASE}/agents/status`);
     } catch (error) {
       console.error('Error getting AI agents status:', error);
       throw error;
@@ -18,7 +18,7 @@ export const aiAgentsService = {
   // Health check for AI agents
   healthCheck: async () => {
     try {
-      return await apiService.get(`${API_ENDPOINTS.AI_AGENTS}/health`);
+      return await apiService.get(`${API_ENDPOINTS.AI_AGENTS.BASE}/health`);
     } catch (error) {
       console.error('Error checking AI agents health:', error);
       throw error;
@@ -34,7 +34,7 @@ export const aiAgentsService = {
         industry_type: riskData.industryType,
         context: riskData.context || {}
       };
-      return await apiService.post(`${API_ENDPOINTS.AI_AGENTS}/risk/assess`, payload);
+      return await apiService.post(`${API_ENDPOINTS.AI_AGENTS.BASE}/risk/assess`, payload);
     } catch (error) {
       console.error('Error in risk assessment:', error);
       throw error;
@@ -50,7 +50,7 @@ export const aiAgentsService = {
         industry_type: complianceData.industryType,
         compliance_requirements: complianceData.complianceRequirements || []
       };
-      return await apiService.post(`${API_ENDPOINTS.AI_AGENTS}/compliance/check`, payload);
+      return await apiService.post(`${API_ENDPOINTS.AI_AGENTS.BASE}/compliance/check`, payload);
     } catch (error) {
       console.error('Error in compliance check:', error);
       throw error;
@@ -66,7 +66,7 @@ export const aiAgentsService = {
         review_scope: policyData.reviewScope,
         context: policyData.context || {}
       };
-      return await apiService.post(`${API_ENDPOINTS.AI_AGENTS}/policy/review`, payload);
+      return await apiService.post(`${API_ENDPOINTS.AI_AGENTS.BASE}/policy/review`, payload);
     } catch (error) {
       console.error('Error in policy review:', error);
       throw error;
@@ -82,7 +82,7 @@ export const aiAgentsService = {
         data: analysisData.data,
         context: analysisData.context || {}
       };
-      return await apiService.post(`${API_ENDPOINTS.AI_AGENTS}/analysis/cross-domain`, payload);
+      return await apiService.post(`${API_ENDPOINTS.AI_AGENTS.BASE}/analysis/cross-domain`, payload);
     } catch (error) {
       console.error('Error in cross-domain analysis:', error);
       throw error;
@@ -96,7 +96,7 @@ export const aiAgentsService = {
         operation_type: operationData.operationType,
         context: operationData.context || {}
       };
-      return await apiService.post(`${API_ENDPOINTS.AI_AGENTS}/industry/${industryType}/operations`, payload);
+      return await apiService.post(`${API_ENDPOINTS.AI_AGENTS.BASE}/industry/${industryType}/operations`, payload);
     } catch (error) {
       console.error('Error in industry operation:', error);
       throw error;

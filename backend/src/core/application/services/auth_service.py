@@ -10,7 +10,16 @@ from datetime import datetime, timedelta
 from typing import Optional, Dict, Any, Tuple
 from uuid import UUID
 
-from ...config.settings import settings
+import sys
+import os
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
+
+try:
+    from config.settings import settings
+except ImportError:
+    # Fallback for direct execution
+    sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', '..', '..'))
+    from config.settings import settings
 from ...domain.entities.user import User, UserStatus, UserRole
 from ...domain.repositories.user_repository import UserRepository
 from ...domain.repositories.audit_log_repository import AuditLogRepository

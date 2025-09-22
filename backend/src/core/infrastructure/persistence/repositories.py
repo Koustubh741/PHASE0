@@ -18,6 +18,7 @@ from ...domain.repositories.user_repository import UserRepository
 from ...domain.repositories.policy_repository import PolicyRepository
 from ...domain.repositories.risk_repository import RiskRepository
 from ...domain.repositories.organization_repository import OrganizationRepository
+from ...domain.repositories.audit_log_repository import AuditLogRepository
 
 from ..database.sqlalchemy_models import (
     UserModel, PolicyModel, PolicyVersionModel, RiskModel, RiskAssessmentModel,
@@ -426,4 +427,109 @@ class SQLAlchemyOrganizationRepository:
             is_active=org_model.is_active,
             created_at=org_model.created_at,
             updated_at=org_model.updated_at
+        )
+
+
+class SQLAlchemyAuditLogRepository:
+    """SQLAlchemy implementation of AuditLogRepository"""
+    
+    def __init__(self):
+        self.session_factory = None
+    
+    def set_session_factory(self, session_factory):
+        """Set the session factory"""
+        self.session_factory = session_factory
+    
+    def create(self, audit_log):
+        """Create a new audit log entry"""
+        from ...domain.entities.audit_log import AuditLog
+        
+        session = self.session_factory()
+        try:
+            audit_log_model = AuditLogModel(
+                id=audit_log.id,
+                user_id=audit_log.user_id,
+                action=audit_log.action.value,
+                resource=audit_log.resource.value,
+                resource_id=audit_log.resource_id,
+                details=audit_log.details,
+                ip_address=audit_log.ip_address,
+                user_agent=audit_log.user_agent,
+                severity=audit_log.severity.value if audit_log.severity else None,
+                created_at=audit_log.created_at
+            )
+            session.add(audit_log_model)
+            session.commit()
+            return audit_log
+        except Exception as e:
+            session.rollback()
+            raise e
+        finally:
+            session.close()
+    
+    def get_by_id(self, audit_log_id):
+        """Get audit log by ID"""
+        session = self.session_factory()
+        try:
+            audit_log_model = session.query(AuditLogModel).filter(AuditLogModel.id == audit_log_id).first()
+            if audit_log_model:
+                return self._to_domain(audit_log_model)
+            return None
+        finally:
+            session.close()
+    
+    def get_by_user_id(self, user_id):
+        """Get audit logs by user ID"""
+        session = self.session_factory()
+        try:
+            audit_log_models = session.query(AuditLogModel).filter(
+                AuditLogModel.user_id == user_id
+            ).order_by(desc(AuditLogModel.created_at)).all()
+            return [self._to_domain(model) for model in audit_log_models]
+        finally:
+            session.close()
+    
+    def get_by_resource(self, resource, resource_id):
+        """Get audit logs by resource"""
+        session = self.session_factory()
+        try:
+            audit_log_models = session.query(AuditLogModel).filter(
+                and_(
+                    AuditLogModel.resource == resource.value,
+                    AuditLogModel.resource_id == resource_id
+                )
+            ).order_by(desc(AuditLogModel.created_at)).all()
+            return [self._to_domain(model) for model in audit_log_models]
+        finally:
+            session.close()
+    
+    def get_by_date_range(self, start_date, end_date):
+        """Get audit logs by date range"""
+        session = self.session_factory()
+        try:
+            audit_log_models = session.query(AuditLogModel).filter(
+                and_(
+                    AuditLogModel.created_at >= start_date,
+                    AuditLogModel.created_at <= end_date
+                )
+            ).order_by(desc(AuditLogModel.created_at)).all()
+            return [self._to_domain(model) for model in audit_log_models]
+        finally:
+            session.close()
+    
+    def _to_domain(self, audit_log_model):
+        """Convert SQLAlchemy model to domain entity"""
+        from ...domain.entities.audit_log import AuditLog, AuditAction, AuditResource, AuditSeverity
+        
+        return AuditLog(
+            id=audit_log_model.id,
+            user_id=audit_log_model.user_id,
+            action=AuditAction(audit_log_model.action),
+            resource=AuditResource(audit_log_model.resource),
+            resource_id=audit_log_model.resource_id,
+            details=audit_log_model.details,
+            ip_address=audit_log_model.ip_address,
+            user_agent=audit_log_model.user_agent,
+            severity=AuditSeverity(audit_log_model.severity) if audit_log_model.severity else None,
+            created_at=audit_log_model.created_at
         )

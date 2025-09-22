@@ -9,7 +9,16 @@ from typing import Optional, Dict, Any
 import jwt
 from datetime import datetime
 
-from ...config.settings import settings
+import sys
+import os
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
+
+try:
+    from config.settings import settings
+except ImportError:
+    # Fallback for direct execution
+    sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', '..', '..'))
+    from config.settings import settings
 from ...core.domain.entities.user import User
 from ...core.application.services.auth_service import AuthService, AuthenticationError, AuthorizationError
 

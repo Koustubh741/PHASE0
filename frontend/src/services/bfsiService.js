@@ -1,29 +1,29 @@
-import { apiService } from './api';
+import { apiService, API_ENDPOINTS } from './api';
 
 // BFSI-specific API endpoints
 export const BFSI_API_ENDPOINTS = {
   // BFSI Industry Status
-  STATUS: '/grc/industry/bfsi/status',
-  INDUSTRIES: '/grc/industries',
+  STATUS: '/api/v1/ai-agents/industry/bfsi/status',
+  INDUSTRIES: '/api/v1/ai-agents/industries',
   
   // BFSI Risk Assessment
-  RISK_ASSESSMENT: '/grc/industry/bfsi/risk-assessment',
+  RISK_ASSESSMENT: '/api/v1/ai-agents/industry/bfsi/risk-assessment',
   
   // BFSI Compliance Check
-  COMPLIANCE_CHECK: '/grc/industry/bfsi/compliance-check',
+  COMPLIANCE_CHECK: '/api/v1/ai-agents/industry/bfsi/compliance-check',
   
   // BFSI Assessment
-  ASSESSMENT: '/grc/industry/bfsi/assessment',
+  ASSESSMENT: '/api/v1/ai-agents/industry/bfsi/assessment',
   
   // BFSI Reports
-  REPORT: '/grc/industry/bfsi/report',
+  REPORT: '/api/v1/ai-agents/industry/bfsi/report',
   
   // BFSI Policy Management
-  POLICIES: '/grc/industry/bfsi/policies',
-  POLICY_STANDARDS: '/grc/industry/bfsi/policy-standards',
+  POLICIES: '/api/v1/policies/industry/bfsi',
+  POLICY_STANDARDS: '/api/v1/policies/industry/bfsi/standards',
   
   // BFSI Agent Status
-  AGENT_STATUS: '/grc/status',
+  AGENT_STATUS: '/api/v1/ai-agents/status',
 };
 
 // BFSI Service class

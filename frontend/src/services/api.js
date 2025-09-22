@@ -1,9 +1,10 @@
 import axios from 'axios';
+import API_CONFIG from '../config/api';
 
 // Create axios instance with base configuration
 const api = axios.create({
-  baseURL: process.env.REACT_APP_API_URL,
-  timeout: 10000,
+  baseURL: API_CONFIG.BASE_URL,
+  timeout: API_CONFIG.TIMEOUT,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -12,9 +13,11 @@ const api = axios.create({
 // Request interceptor to add auth token
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('authToken');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
+    if (API_CONFIG.AUTH.ENABLED) {
+      const token = localStorage.getItem(API_CONFIG.AUTH.TOKEN_KEY);
+      if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+      }
     }
     return config;
   },
@@ -29,50 +32,17 @@ api.interceptors.response.use(
     return response;
   },
   (error) => {
-    if (error.response?.status === 401) {
+    if (error.response?.status === 401 && API_CONFIG.AUTH.ENABLED) {
       // Handle unauthorized access
-      localStorage.removeItem('authToken');
+      localStorage.removeItem(API_CONFIG.AUTH.TOKEN_KEY);
       window.location.href = '/login';
     }
     return Promise.reject(error);
   }
 );
 
-// API endpoints
-export const API_ENDPOINTS = {
-  // Authentication
-  LOGIN: '/auth/login',
-  LOGOUT: '/auth/logout',
-  REFRESH: '/auth/refresh',
-  
-  // Policies
-  POLICIES: '/policies',
-  POLICY_BY_ID: (id) => `/policies/${id}`,
-  
-  // Risks
-  RISKS: '/risks',
-  RISK_BY_ID: (id) => `/risks/${id}`,
-  
-  // Compliance
-  COMPLIANCE: '/compliance',
-  COMPLIANCE_BY_ID: (id) => `/compliance/${id}`,
-  
-  // Workflows
-  WORKFLOWS: '/workflows',
-  WORKFLOW_BY_ID: (id) => `/workflows/${id}`,
-  
-  // Analytics
-  ANALYTICS: '/analytics',
-  DASHBOARD: '/dashboard',
-  
-  // AI Agents
-  AI_AGENTS: '/ai-agents',
-  AI_AGENT_BY_ID: (id) => `/ai-agents/${id}`,
-  
-  // Vector Store
-  VECTOR_SEARCH: '/vector/search',
-  VECTOR_ADD: '/vector/add',
-};
+// Export API endpoints from configuration
+export const API_ENDPOINTS = API_CONFIG.ENDPOINTS;
 
 // Generic API methods
 export const apiService = {

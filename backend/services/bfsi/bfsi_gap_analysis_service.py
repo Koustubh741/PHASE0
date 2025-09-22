@@ -589,10 +589,11 @@ NEXT STEPS:
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
         
+        # Use the actual database schema
         cursor.execute('''
-            SELECT title, content, category, framework, source_file, file_type, created_date
+            SELECT title, content, policy_type, framework, source_file, file_type, created_at
             FROM policies
-            ORDER BY created_date DESC
+            ORDER BY created_at DESC
         ''')
         
         policies = []
@@ -600,7 +601,7 @@ NEXT STEPS:
             policies.append({
                 "title": row[0],
                 "content": row[1],
-                "category": row[2],
+                "category": row[2],  # policy_type maps to category
                 "framework": row[3],
                 "source_file": row[4],
                 "file_type": row[5],
@@ -805,3 +806,4 @@ async def main():
 if __name__ == "__main__":
     import asyncio
     asyncio.run(main())
+
