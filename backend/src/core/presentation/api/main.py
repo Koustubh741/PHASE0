@@ -120,7 +120,7 @@ async def root():
 
 # Include API routes
 from fastapi import APIRouter
-from ..api.v1.endpoints import auth, users, policies, workflows
+from ..api.v1.endpoints import auth, users, policies, workflows, bfsi_ai
 
 # API v1 router
 api_v1_router = APIRouter(prefix="/api/v1")
@@ -130,6 +130,7 @@ api_v1_router.include_router(auth.router)
 api_v1_router.include_router(users.router)
 api_v1_router.include_router(policies.router)
 api_v1_router.include_router(workflows.router)
+api_v1_router.include_router(bfsi_ai.router)
 
 # Include the main API router
 app.include_router(api_v1_router)

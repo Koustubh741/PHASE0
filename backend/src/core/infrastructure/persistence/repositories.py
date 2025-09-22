@@ -452,11 +452,11 @@ class SQLAlchemyAuditLogRepository:
                 action=audit_log.action.value,
                 resource=audit_log.resource.value,
                 resource_id=audit_log.resource_id,
-                details=audit_log.details,
+                description=audit_log.details,
                 ip_address=audit_log.ip_address,
                 user_agent=audit_log.user_agent,
                 severity=audit_log.severity.value if audit_log.severity else None,
-                created_at=audit_log.created_at
+                timestamp=audit_log.created_at
             )
             session.add(audit_log_model)
             session.commit()
@@ -484,7 +484,7 @@ class SQLAlchemyAuditLogRepository:
         try:
             audit_log_models = session.query(AuditLogModel).filter(
                 AuditLogModel.user_id == user_id
-            ).order_by(desc(AuditLogModel.created_at)).all()
+            ).order_by(desc(AuditLogModel.timestamp)).all()
             return [self._to_domain(model) for model in audit_log_models]
         finally:
             session.close()
@@ -498,7 +498,7 @@ class SQLAlchemyAuditLogRepository:
                     AuditLogModel.resource == resource.value,
                     AuditLogModel.resource_id == resource_id
                 )
-            ).order_by(desc(AuditLogModel.created_at)).all()
+            ).order_by(desc(AuditLogModel.timestamp)).all()
             return [self._to_domain(model) for model in audit_log_models]
         finally:
             session.close()
@@ -512,7 +512,7 @@ class SQLAlchemyAuditLogRepository:
                     AuditLogModel.created_at >= start_date,
                     AuditLogModel.created_at <= end_date
                 )
-            ).order_by(desc(AuditLogModel.created_at)).all()
+            ).order_by(desc(AuditLogModel.timestamp)).all()
             return [self._to_domain(model) for model in audit_log_models]
         finally:
             session.close()
@@ -531,5 +531,5 @@ class SQLAlchemyAuditLogRepository:
             ip_address=audit_log_model.ip_address,
             user_agent=audit_log_model.user_agent,
             severity=AuditSeverity(audit_log_model.severity) if audit_log_model.severity else None,
-            created_at=audit_log_model.created_at
+            created_at=audit_log_model.timestamp
         )

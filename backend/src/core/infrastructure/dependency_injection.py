@@ -13,12 +13,14 @@ from ..application.services.risk_service import RiskService
 from ..application.services.organization_service import OrganizationService
 from ..application.services.auth_service import AuthService
 from ..application.services.audit_service import AuditService
+from ..application.services.bfsi_ai_service import BFSIAIService
 
 from .persistence.repositories import (
     SQLAlchemyUserRepository,
     SQLAlchemyPolicyRepository,
     SQLAlchemyRiskRepository,
     SQLAlchemyOrganizationRepository,
+    SQLAlchemyAuditLogRepository,
 )
 
 from .database import get_db, get_async_session
@@ -64,19 +66,22 @@ def setup_dependencies(session: Session):
     _container.register_repository("policy", SQLAlchemyPolicyRepository, session)
     _container.register_repository("risk", SQLAlchemyRiskRepository, session)
     _container.register_repository("organization", SQLAlchemyOrganizationRepository, session)
+    _container.register_repository("audit_log", SQLAlchemyAuditLogRepository, session)
     
     # Register services
     user_repo = _container.get_repository("user")
     policy_repo = _container.get_repository("policy")
     risk_repo = _container.get_repository("risk")
     organization_repo = _container.get_repository("organization")
+    audit_log_repo = _container.get_repository("audit_log")
     
     _container.register_service("user", UserService(user_repo))
     _container.register_service("policy", PolicyService(policy_repo))
     _container.register_service("risk", RiskService(risk_repo))
     _container.register_service("organization", OrganizationService(organization_repo))
-    _container.register_service("auth", AuthService(user_repo))
-    _container.register_service("audit", AuditService())
+    _container.register_service("audit", AuditService(audit_log_repo))
+    _container.register_service("bfsi_ai", BFSIAIService(policy_repo, risk_repo, audit_log_repo))
+    _container.register_service("auth", AuthService(user_repo, audit_log_repo))
 
 
 # FastAPI dependency functions
@@ -108,6 +113,11 @@ def get_auth_service() -> AuthService:
 def get_audit_service() -> AuditService:
     """Get audit service dependency"""
     return _container.get_service("audit")
+
+
+def get_bfsi_ai_service() -> BFSIAIService:
+    """Get BFSI AI service dependency"""
+    return _container.get_service("bfsi_ai")
 
 
 # Initialize dependencies when module is imported
