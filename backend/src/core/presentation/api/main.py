@@ -120,7 +120,7 @@ async def root():
 
 # Include API routes
 from fastapi import APIRouter
-from ..api.v1.endpoints import auth, users, policies, workflows, bfsi_ai, analytics, monitoring, workflow_automation, compliance_frameworks, ml_ai
+from ..api.v1.endpoints import auth, users, policies, workflows, bfsi_ai, analytics, monitoring, workflow_automation, compliance_frameworks, ml_ai, performance
 from .docs import setup_api_documentation
 
 # API v1 router
@@ -137,6 +137,7 @@ api_v1_router.include_router(monitoring.router) # Added monitoring router
 api_v1_router.include_router(workflow_automation.router) # Added workflow automation router
 api_v1_router.include_router(compliance_frameworks.router) # Added compliance frameworks router
 api_v1_router.include_router(ml_ai.router) # Added ML-enhanced AI router
+api_v1_router.include_router(performance.router) # Added performance optimization router
 
 # Include the main API router
 app.include_router(api_v1_router)
