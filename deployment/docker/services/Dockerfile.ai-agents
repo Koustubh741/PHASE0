@@ -16,7 +16,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy AI agents dependencies
 COPY ../../ai-agents/agents_organized/ ./ai-agents/
-COPY ../../docker/ai-agents/requirements.txt ./ai-agents-requirements.txt
+COPY ai-agents-requirements.txt ./ai-agents-requirements.txt
 
 # Install AI agents dependencies
 RUN pip install --no-cache-dir -r ai-agents-requirements.txt
