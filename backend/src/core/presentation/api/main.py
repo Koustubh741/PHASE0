@@ -12,9 +12,7 @@ from typing import Dict, Any, Optional
 import os
 import sys
 
-# Add services directory to path
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'services'))
-from mock_data_service import mock_data_service
+from core.infrastructure.external_services.mock_data_service import mock_data_service
 from datetime import datetime
 
 logger = logging.getLogger(__name__)
