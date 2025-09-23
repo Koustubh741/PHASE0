@@ -14,6 +14,7 @@ grc-platform/
 ├── deployment/            # Docker and deployment configs
 ├── docs/                  # Documentation
 ├── scripts/               # Utility scripts
+│   └── starters/          # Local demo/integration launchers
 └── tests/                 # Integration and E2E tests
 ```
 
